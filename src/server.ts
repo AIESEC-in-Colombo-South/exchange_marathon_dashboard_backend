@@ -3,7 +3,9 @@ import express from "express";
 import type { AddressInfo } from "node:net";
 import { config, assertSyncConfig } from "./config.js";
 import { runSync } from "./sync.js";
+import { syncMktMembers } from "./sync_mkt.js";
 import { getTeamDashboard } from "./aggregation.js";
+import { getSupabase } from "./supabase.js";
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -37,6 +39,7 @@ function startAutoSyncScheduler(): void {
     schedulerBusy = true;
     try {
       await runSync();
+      await syncMktMembers();
       console.log(`Auto sync completed`);
     } catch (error) {
       console.error("Auto sync failed:", error);
@@ -44,6 +47,35 @@ function startAutoSyncScheduler(): void {
       schedulerBusy = false;
     }
   }, intervalMs);
+
+  // High-frequency polling for manual triggers (Bypass for Render communication blocks)
+  setInterval(async () => {
+    if (schedulerBusy) return;
+    try {
+      const { getSupabase } = await import("./supabase.js");
+      const supabase = getSupabase() as any;
+      const { data, error } = await supabase
+        .from("sync_sources")
+        .select("id")
+        .eq("pending_sync", true)
+        .limit(1);
+
+      if (data && data.length > 0) {
+        console.log("🔔 Manual sync trigger detected in database!");
+        schedulerBusy = true;
+        try {
+          await runSync();
+          await syncMktMembers();
+          await supabase.from("sync_sources").update({ pending_sync: false }).eq("pending_sync", true);
+          console.log("✅ Database trigger processed and reset.");
+        } finally {
+          schedulerBusy = false;
+        }
+      }
+    } catch (e) {
+       // Silent fail: table might not exist yet during migration phase
+    }
+  }, 30000); // Check every 30 seconds
 }
 
 app.get("/", (_req, res) => {
@@ -134,6 +166,43 @@ app.get("/api/dashboard/:team", async (req, res) => {
   }
 });
 
+app.get("/api/mkt-members", async (_req, res) => {
+  try {
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from("mkt_members")
+      .select("*")
+      .order("Points", { ascending: false });
+
+    if (error) throw error;
+    res.status(200).json({ ok: true, data: data || [] });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error instanceof Error ? error.message : "Database error" });
+  }
+});
+
+app.post("/sync/mkt", async (_req, res) => {
+  if (schedulerBusy) {
+    res.status(429).json({ ok: false, error: "Sync already in progress." });
+    return;
+  }
+
+  res.status(202).json({ 
+    ok: true, 
+    message: "MKT sync triggered and running in background." 
+  });
+
+  schedulerBusy = true;
+  try {
+    const result = await syncMktMembers();
+    console.log(`Manual MKT sync completed:`, result);
+  } catch (error) {
+    console.error("Manual MKT sync failed:", error instanceof Error ? error.message : error);
+  } finally {
+    schedulerBusy = false;
+  }
+});
+
 const syncOnce = process.argv.includes("--sync-once");
 if (syncOnce) {
   runSync()
@@ -165,6 +234,7 @@ if (syncOnce) {
         schedulerBusy = true;
         console.log("🔄 Running initial startup sync...");
         const result = await runSync();
+        await syncMktMembers();
         console.log(`✅ Initial startup sync completed: ${result.runId}`, result);
       } catch (error) {
         console.warn("⚠️ Initial startup sync skipped/failed:", error instanceof Error ? error.message : error);
