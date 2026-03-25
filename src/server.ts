@@ -1,7 +1,7 @@
 import cors from "cors";
 import express from "express";
 import type { AddressInfo } from "node:net";
-import { config } from "./config.js";
+import { config, assertSyncConfig } from "./config.js";
 import { runSync } from "./sync.js";
 import { getTeamDashboard } from "./aggregation.js";
 const app = express();
