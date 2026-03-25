@@ -8,6 +8,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Diagnostic Logger: Helps see if requests from Google are even reaching us
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} from ${req.ip} - ${req.get('user-agent')}`);
+  next();
+});
+
 let schedulerBusy = false;
 
 function startAutoSyncScheduler(): void {
@@ -77,6 +83,18 @@ app.get("/sync/run", async (req, res) => {
     <p>To trigger a synchronization manually, add <code>?key=marathon</code> to this URL.</p>
     <p>Current Server Time: ${new Date().toISOString()}</p>
   `);
+});
+
+// Alias endpoint for troubleshooting 503s
+app.get("/sync-now-direct", async (req, res) => {
+  if (req.query.key === "marathon") {
+     if (schedulerBusy) return res.status(429).send("Busy");
+     res.status(202).send("🚀 Sync Triggered");
+     schedulerBusy = true;
+     try { await runSync(); } catch (e) { console.error(e); } finally { schedulerBusy = false; }
+     return;
+  }
+  res.status(200).send("Marathon Direct Sync Endpoint Active");
 });
 
 app.post("/sync/run", async (_req, res) => {
