@@ -8,8 +8,9 @@ export interface MemberProfile {
   email: string;
   name: string;
   role: string;
+  functionSlug: string;
   team: string;
-  squad: string;
+  squad?: string;
 }
 
 export interface MemberSnapshot {
@@ -17,8 +18,9 @@ export interface MemberSnapshot {
   email: string;
   name: string;
   role: string;
+  functionSlug: string;
   team: string;
-  squad: string;
+  squad?: string;
   dateKey: string;
   weekKey: string;
   counts: CriteriaCounts;
@@ -27,7 +29,18 @@ export interface MemberSnapshot {
   syncedAt: string;
 }
 
+export interface ActionLog {
+  id?: number;
+  memberEmail: string;
+  functionSlug: string;
+  teamSlug: string;
+  actionType: string;
+  actionTimestamp: string;
+  syncedAt?: string;
+}
+
 export interface TeamDashboardPerformer {
+  email: string; // 👈 Added for unique keys
   name: string;
   role: string;
   score: number;
@@ -36,6 +49,7 @@ export interface TeamDashboardPerformer {
 }
 
 export interface TeamDashboardMiniTeam {
+  slug: string; // 👈 Added for display
   name: string;
   rank: number;
   points: number;
@@ -47,6 +61,7 @@ export interface TeamDashboardMiniTeam {
 export interface TeamDashboardPayload {
   name: string;
   displayName: string;
+  functionSlug?: string;
   miniTeams: TeamDashboardMiniTeam[];
   totalPoints: number;
   totalGrowth: number;
@@ -58,5 +73,31 @@ export interface TeamDashboardPayload {
     lastSyncTime: string;
     nextSyncTime: string;
     intervalMinutes: number;
+    runId?: string;
+    rowCount?: number;
+    sheetName?: string;
   };
+}
+
+export interface SyncSource {
+  id: string;
+  functionSlug: string;
+  spreadsheetId: string;
+  sheetNames: string[];
+  columnMapping: {
+    email: string;
+    name: string;
+    role: string;
+    mous: string;
+    coldCalls: string;
+    followups: string;
+    timestamp: string;
+  };
+  scoringRules: {
+    mou: number;
+    coldCall: number;
+    followup: number;
+  };
+  isActive: boolean;
+  lastSyncAt?: string;
 }
