@@ -40,6 +40,10 @@ export const config = {
       mous: stringEnv("SHEET_COL_MOUS", "MOUs"),
       coldCalls: stringEnv("SHEET_COL_COLD_CALLS", "Cold Calls"),
       followups: stringEnv("SHEET_COL_FOLLOWUPS", "Followups")
+    },
+    mkt: {
+      spreadsheetId: stringEnv("MKT_SPREADSHEET_ID"),
+      sheetName: stringEnv("MKT_SHEET_NAME", "Sheet1")
     }
   },
   supabase: {
