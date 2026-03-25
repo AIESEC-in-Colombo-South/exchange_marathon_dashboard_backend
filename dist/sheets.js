@@ -10,26 +10,41 @@ function getGoogleAuth() {
         scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"]
     });
 }
-export async function fetchSheetRows() {
+export async function fetchMultipleSheets(sheetNames) {
     if (!config.google.spreadsheetId) {
         throw new Error("GOOGLE_SPREADSHEET_ID is not configured");
     }
     const sheets = google.sheets({ version: "v4", auth: getGoogleAuth() });
-    const range = `${config.google.sheetName}!A:Z`;
-    const response = await sheets.spreadsheets.values.get({
-        spreadsheetId: config.google.spreadsheetId,
-        range
+    const results = {};
+    const promises = sheetNames.map(async (sheetName) => {
+        const range = `${sheetName}!A:Z`;
+        try {
+            console.log(`📡 Fetching range: "${range}"...`);
+            const response = await sheets.spreadsheets.values.get({
+                spreadsheetId: config.google.spreadsheetId,
+                range
+            });
+            const values = response.data.values || [];
+            console.log(`📥 Received ${values.length} raw rows from "${sheetName}"`);
+            if (values.length < 2) {
+                results[sheetName] = [];
+                return;
+            }
+            const headers = values[0].map((h) => String(h).trim());
+            const rows = values.slice(1);
+            results[sheetName] = rows.map((cells) => {
+                const obj = {};
+                headers.forEach((header, index) => {
+                    obj[header] = String(cells[index] ?? "").trim();
+                });
+                return obj;
+            });
+        }
+        catch (error) {
+            console.error(`❌ Failed to fetch sheet "${sheetName}":`, error);
+            results[sheetName] = [];
+        }
     });
-    const values = response.data.values || [];
-    if (values.length < 2)
-        return [];
-    const headers = values[0].map((h) => String(h).trim());
-    const rows = values.slice(1);
-    return rows.map((cells) => {
-        const obj = {};
-        headers.forEach((header, index) => {
-            obj[header] = String(cells[index] ?? "").trim();
-        });
-        return obj;
-    });
+    await Promise.all(promises);
+    return results;
 }

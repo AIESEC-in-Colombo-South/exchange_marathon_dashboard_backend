@@ -1,5 +1,6 @@
-import { db } from "./firebase.js";
-import { currentDateKey } from "./date.js";
+import { getSupabase } from "./supabase.js";
+import { currentDateKey, getStartDateForPeriod, nowIso } from "./date.js";
+import { config } from "./config.js";
 function prettifyTeamSlug(team) {
     if (!team)
         return "Team";
@@ -17,34 +18,77 @@ function initials(name) {
         .map((part) => part[0]?.toUpperCase() || "")
         .join("") || "NA";
 }
-export async function getTeamDashboard(team, period = "daily", asOfDate) {
-    const firestore = db();
-    const dateKey = asOfDate || currentDateKey();
-    const collection = period === "daily" ? "dailySnapshots" : "weeklySnapshots";
-    let query = firestore.collection(collection).where("team", "==", team.toLowerCase());
-    if (period === "daily") {
-        query = query.where("dateKey", "==", dateKey);
+export async function getTeamDashboard(targetSlug, period = "daily", asOfDate, prefetchedDocs, level = "team") {
+    const supabase = getSupabase();
+    let dateKey = asOfDate || currentDateKey();
+    const startDate = getStartDateForPeriod(period);
+    let docs = [];
+    if (prefetchedDocs) {
+        if (startDate) {
+            docs = prefetchedDocs.filter(d => d.dateKey >= startDate);
+        }
+        else {
+            docs = prefetchedDocs;
+        }
+        if (!asOfDate && docs.length > 0) {
+            const dates = Array.from(new Set(docs.map(d => d.dateKey))).sort().reverse();
+            dateKey = dates[0] || dateKey;
+        }
     }
-    const snapshot = await query.get();
-    const docs = snapshot.docs.map((doc) => doc.data());
-    const squadMap = new Map();
+    else {
+        // Fetch from Supabase
+        let query = supabase
+            .from("daily_snapshots")
+            .select("*")
+            .eq(level === "team" ? "team_slug" : "function_slug", targetSlug.toLowerCase());
+        if (period === "daily") {
+            query = query.eq("date_key", dateKey);
+        }
+        else if (startDate) {
+            query = query.gte("date_key", startDate);
+        }
+        const { data, error } = await query;
+        if (error)
+            throw error;
+        docs = data || [];
+    }
+    const performerMap = new Map();
+    const memberGroupMap = new Map();
     for (const row of docs) {
-        const squad = String(row.squad || "General");
-        const performers = squadMap.get(squad) || [];
-        performers.push({
-            name: String(row.name || "Unknown"),
-            role: String(row.role || "Member"),
-            score: Number(row.points || 0),
-            avatar: initials(String(row.name || "Unknown")),
-            metrics: {
-                mous: Number(row.counts?.mous || 0),
-                coldCalls: Number(row.counts?.coldCalls || 0),
-                followups: Number(row.counts?.followups || 0)
-            }
-        });
-        squadMap.set(squad, performers);
+        const email = row.member_email || row.email;
+        const groupName = level === "function" ? (row.team_slug || "General") : (row.squad || "General");
+        memberGroupMap.set(email, groupName);
+        const existing = performerMap.get(email);
+        const score = Number(row.points || 0);
+        const counts = {
+            mous: Number(row.mous || row.counts?.mous || 0),
+            coldCalls: Number(row.cold_calls || row.counts?.coldCalls || 0),
+            followups: Number(row.followups || row.counts?.followups || 0)
+        };
+        if (existing) {
+            existing.score += score;
+            existing.metrics.mous += counts.mous;
+            existing.metrics.coldCalls += counts.coldCalls;
+            existing.metrics.followups += counts.followups;
+        }
+        else {
+            performerMap.set(email, {
+                name: String(row.name || "Unknown"),
+                role: String(row.role || "Member"),
+                score: score,
+                avatar: initials(String(row.name || "Unknown")),
+                metrics: counts
+            });
+        }
     }
-    const miniTeams = Array.from(squadMap.entries())
+    const groupMap = new Map();
+    for (const [email, performer] of performerMap.entries()) {
+        const groupName = memberGroupMap.get(email) || "General";
+        const peers = groupMap.get(groupName) || [];
+        peers.push(performer);
+        groupMap.set(groupName, peers);
+    }
+    const miniTeams = Array.from(groupMap.entries())
         .map(([name, performers]) => {
         const points = performers.reduce((sum, p) => sum + p.score, 0);
         return {
@@ -63,14 +107,20 @@ export async function getTeamDashboard(team, period = "daily", asOfDate) {
         .flatMap((item) => item.performers)
         .reduce((sum, p) => sum + p.metrics.mous + p.metrics.coldCalls + p.metrics.followups, 0);
     return {
-        name: prettifyTeamSlug(team),
-        displayName: `${prettifyTeamSlug(team)} Performance Dashboard`,
+        name: level === "function" ? targetSlug.toUpperCase() : prettifyTeamSlug(targetSlug),
+        displayName: `${level === "function" ? targetSlug.toUpperCase() : prettifyTeamSlug(targetSlug)} Performance Dashboard`,
+        functionSlug: docs[0]?.function_slug || "b2b",
         miniTeams,
         totalPoints,
         totalGrowth: 0,
         completedActions,
         weeklyGrowth: 0,
         asOfDate: dateKey,
-        period
+        period,
+        syncInfo: {
+            lastSyncTime: nowIso(), // Fallback
+            nextSyncTime: nowIso(),
+            intervalMinutes: config.syncScheduler.intervalMinutes
+        }
     };
 }

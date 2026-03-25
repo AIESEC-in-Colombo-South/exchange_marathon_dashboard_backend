@@ -10,11 +10,11 @@
     "sync:once": "tsx src/server.ts --sync-once"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.100.0",
     "cors": "^2.8.5",
     "dayjs": "^1.11.13",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
-    "firebase-admin": "^13.0.2",
     "googleapis": "^144.0.0"
   },
   "devDependencies": {

@@ -14,6 +14,7 @@ function startAutoSyncScheduler() {
     }
     const intervalMinutes = Math.max(1, config.syncScheduler.intervalMinutes);
     const intervalMs = intervalMinutes * 60 * 1000;
+    // syncState.nextSyncTime could be restored if needed, but keeping it simple for now
     console.log(`Auto sync scheduler enabled: every ${intervalMinutes} minute(s).`);
     setInterval(async () => {
         if (schedulerBusy) {
@@ -22,12 +23,11 @@ function startAutoSyncScheduler() {
         }
         schedulerBusy = true;
         try {
-            const result = await runSync();
-            console.log(`Auto sync completed: ${result.runId} (${result.rowsRead} rows)`);
+            await runSync();
+            console.log(`Auto sync completed`);
         }
         catch (error) {
-            const message = error instanceof Error ? error.message : "Unknown auto-sync error";
-            console.error("Auto sync failed:", message);
+            console.error("Auto sync failed:", error);
         }
         finally {
             schedulerBusy = false;
@@ -38,31 +38,38 @@ app.get("/health", (_req, res) => {
     res.json({ status: "ok", timezone: config.timezone });
 });
 app.post("/sync/run", async (_req, res) => {
+    if (schedulerBusy) {
+        res.status(429).json({ ok: false, error: "Sync already in progress." });
+        return;
+    }
+    // Return immediately to prevent timeouts in the caller (e.g. Google Apps Script)
+    res.status(202).json({
+        ok: true,
+        message: "Sync triggered and running in background."
+    });
+    // Execute sync in background
+    schedulerBusy = true;
     try {
         const result = await runSync();
-        res.status(200).json({ ok: true, result });
+        console.log(`Manual background sync completed: ${result.runId}`, result);
     }
     catch (error) {
-        const message = error instanceof Error ? error.message : "Unknown sync error";
-        res.status(500).json({ ok: false, error: message });
+        console.error("Manual background sync failed:", error instanceof Error ? error.message : error);
+    }
+    finally {
+        schedulerBusy = false;
     }
 });
 app.get("/api/dashboard/:team", async (req, res) => {
+    const team = String(req.params.team || "").trim().toLowerCase();
+    const period = String(req.query.period || "daily");
+    const asOfDate = typeof req.query.asOfDate === "string" ? req.query.asOfDate : undefined;
     try {
-        const team = String(req.params.team || "").trim().toLowerCase();
-        if (!team) {
-            res.status(400).json({ ok: false, error: "Team is required" });
-            return;
-        }
-        const periodParam = String(req.query.period || "daily");
-        const period = periodParam === "weekly" ? "weekly" : "daily";
-        const asOfDate = typeof req.query.asOfDate === "string" ? req.query.asOfDate : undefined;
         const payload = await getTeamDashboard(team, period, asOfDate);
         res.status(200).json({ ok: true, data: payload });
     }
     catch (error) {
-        const message = error instanceof Error ? error.message : "Unknown dashboard error";
-        res.status(500).json({ ok: false, error: message });
+        res.status(500).json({ ok: false, error: error instanceof Error ? error.message : "Dashboard error" });
     }
 });
 const syncOnce = process.argv.includes("--sync-once");
@@ -82,7 +89,25 @@ else {
         const address = server.address();
         const port = address?.port || config.port;
         console.log(`Backend running on http://localhost:${port}`);
+        // Start scheduler if enabled
         startAutoSyncScheduler();
+        // Trigger initial sync on startup with lock
+        void (async () => {
+            if (schedulerBusy)
+                return;
+            schedulerBusy = true;
+            try {
+                console.log("Running initial startup sync...");
+                const result = await runSync();
+                console.log(`Initial startup sync completed: ${result.runId}`, result);
+            }
+            catch (error) {
+                console.error("Initial startup sync failed:", error instanceof Error ? error.message : error);
+            }
+            finally {
+                schedulerBusy = false;
+            }
+        })();
     });
     server.on("error", (error) => {
         if (error.code === "EADDRINUSE") {

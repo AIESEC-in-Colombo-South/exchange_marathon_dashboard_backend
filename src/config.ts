@@ -27,22 +27,24 @@ export const config = {
   timezone: stringEnv("TIMEZONE", "Asia/Colombo"),
   google: {
     spreadsheetId: stringEnv("GOOGLE_SPREADSHEET_ID"),
-    sheetName: stringEnv("GOOGLE_SHEET_NAME", "Form Responses 1"),
+    sheetNames: stringEnv("GOOGLE_SHEET_NAME", "team1,team2").split(",").map(s => s.trim()),
     serviceAccountJson: stringEnv("GOOGLE_SERVICE_ACCOUNT_JSON"),
     columns: {
       email: stringEnv("SHEET_COL_EMAIL", "Email Address"),
       name: stringEnv("SHEET_COL_NAME", "Member Name"),
       role: stringEnv("SHEET_COL_ROLE", "Role"),
+      function: stringEnv("SHEET_COL_FUNCTION", "Function"),
       team: stringEnv("SHEET_COL_TEAM", "Team"),
-      squad: stringEnv("SHEET_COL_SQUAD", "Squad"),
       timestamp: stringEnv("SHEET_COL_TIMESTAMP", "Timestamp"),
+      action: stringEnv("SHEET_COL_ACTION", "Action"),
       mous: stringEnv("SHEET_COL_MOUS", "MOUs"),
       coldCalls: stringEnv("SHEET_COL_COLD_CALLS", "Cold Calls"),
       followups: stringEnv("SHEET_COL_FOLLOWUPS", "Followups")
     }
   },
-  firebase: {
-    serviceAccountJson: stringEnv("FIREBASE_SERVICE_ACCOUNT_JSON")
+  supabase: {
+    url: stringEnv("SUPABASE_URL"),
+    serviceRoleKey: stringEnv("SUPABASE_SERVICE_ROLE_KEY")
   },
   scoring: {
     mou: numberEnv("POINTS_MOU", 10),
@@ -59,10 +61,13 @@ export function assertSyncConfig(): void {
   if (!config.google.spreadsheetId) {
     throw new Error("GOOGLE_SPREADSHEET_ID is required for sync");
   }
+  if (config.google.sheetNames.length === 0) {
+    throw new Error("At least one GOOGLE_SHEET_NAME is required for sync");
+  }
   if (!config.google.serviceAccountJson) {
     throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON is required for sync");
   }
-  if (!config.firebase.serviceAccountJson) {
-    throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON is required");
+  if (!config.supabase.url || !config.supabase.serviceRoleKey) {
+    throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required");
   }
 }

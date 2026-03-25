@@ -1,7 +1,6 @@
-import { db } from "./firebase.js";
-import { currentDateKey, getStartDateForPeriod } from "./date.js";
+import { getSupabase } from "./supabase.js";
+import { currentDateKey, getStartDateForPeriod, nowIso } from "./date.js";
 import { config } from "./config.js";
-import { syncState } from "./state.js";
 import type {
   TeamDashboardMiniTeam,
   TeamDashboardPayload,
@@ -27,127 +26,115 @@ function initials(name: string): string {
 }
 
 export async function getTeamDashboard(
-  team: string,
+  targetSlug: string,
   period: "daily" | "weekly" | "bi-weekly" | "monthly" | "marathon" = "daily",
-  asOfDate?: string
+  asOfDate?: string,
+  prefetchedDocs?: any[],
+  level: "team" | "function" = "team"
 ): Promise<TeamDashboardPayload> {
-  const firestore = db();
-  const dateKey = asOfDate || currentDateKey();
-
+  const supabase = getSupabase() as any;
+  let dateKey = asOfDate || currentDateKey();
   const startDate = getStartDateForPeriod(period);
-  const collection = "dailySnapshots";
+  
   let docs: any[] = [];
 
-  if (period === "daily") {
-    const dailyQuery = firestore.collection(collection)
-      .where("team", "==", team.toLowerCase())
-      .where("dateKey", "==", dateKey);
-    
-    let dailySnapshot = await dailyQuery.get();
-    
-    if (dailySnapshot.empty && !asOfDate) {
-      // Fallback to the latest available day if "today" is empty
-      const latestDaySnapshot = await firestore.collection(collection)
-        .where("team", "==", team.toLowerCase())
-        .orderBy("dateKey", "desc")
-        .limit(1)
-        .get();
-      
-      if (!latestDaySnapshot.empty) {
-        const latestDateKey = latestDaySnapshot.docs[0].data().dateKey;
-        const fallbackSnapshot = await firestore.collection(collection)
-          .where("team", "==", team.toLowerCase())
-          .where("dateKey", "==", latestDateKey)
-          .get();
-        dailySnapshot = fallbackSnapshot;
-        // Update dateKey so the frontend knows we are showing a fallback date
-        dateKey = latestDateKey;
-      }
-    }
-    docs = dailySnapshot.docs.map(d => d.data());
-  } else {
-    let rangeQuery = firestore.collection(collection).where("team", "==", team.toLowerCase());
+  if (prefetchedDocs) {
     if (startDate) {
-      rangeQuery = rangeQuery.where("dateKey", ">=", startDate);
+      docs = prefetchedDocs.filter(d => d.dateKey >= startDate);
+    } else {
+      docs = prefetchedDocs;
     }
-    const rangeSnapshot = await rangeQuery.get();
-    docs = rangeSnapshot.docs.map(d => d.data());
+    if (!asOfDate && docs.length > 0) {
+      const dates = Array.from(new Set(docs.map(d => d.dateKey))).sort().reverse();
+      dateKey = dates[0] || dateKey;
+    }
+  } else {
+    // Fetch from Supabase
+    let query = supabase
+      .from("daily_snapshots")
+      .select("*")
+      .eq(level === "team" ? "team_slug" : "function_slug", targetSlug.toLowerCase());
+
+    if (period === "daily") {
+      query = query.eq("date_key", dateKey);
+    } else if (startDate) {
+      query = query.gte("date_key", startDate);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    docs = data || [];
   }
 
   const performerMap = new Map<string, TeamDashboardPerformer>();
-  const memberSquadMap = new Map<string, string>(); // Email -> Squad
+  const memberGroupMap = new Map<string, string>(); 
 
   for (const row of docs) {
-    const email = String(row.email || "");
-    const squad = String(row.squad || "General");
-    memberSquadMap.set(email, squad);
+    const email = row.member_email || row.email;
+    const teamValue = row.team_slug || row.team;
+    const groupName = level === "function" ? (teamValue || "General") : "General";
+    memberGroupMap.set(email, groupName);
 
     const existing = performerMap.get(email);
     const score = Number(row.points || 0);
     const counts = {
-      mous: Number(row.counts?.mous || 0),
-      coldCalls: Number(row.counts?.coldCalls || 0),
-      followups: Number(row.counts?.followups || 0)
+      mous: Number(row.mous || row.counts?.mous || 0),
+      coldCalls: Number(row.cold_calls || row.counts?.coldCalls || 0),
+      followups: Number(row.followups || row.counts?.followups || 0)
     };
 
-    if (existing) {
-      existing.score += score;
-      existing.metrics.mous += counts.mous;
-      existing.metrics.coldCalls += counts.coldCalls;
-      existing.metrics.followups += counts.followups;
-    } else {
-      performerMap.set(email, {
-        name: String(row.name || "Unknown"),
-        role: String(row.role || "Member"),
-        score: score,
-        avatar: initials(String(row.name || "Unknown")),
-        metrics: counts
-      });
+      if (existing) {
+        existing.score += score;
+        existing.metrics.mous += counts.mous;
+        existing.metrics.coldCalls += counts.coldCalls;
+        existing.metrics.followups += counts.followups;
+      } else {
+        performerMap.set(email, {
+          email, // 👈 Populate email
+          name: String(row.name || "Unknown"),
+          role: String(row.role || "Member"),
+          score: score,
+          avatar: initials(String(row.name || "Unknown")),
+          metrics: counts
+        });
+      }
     }
-  }
-
-  const squadMap = new Map<string, TeamDashboardPerformer[]>();
-  for (const [email, performer] of performerMap.entries()) {
-    const squad = memberSquadMap.get(email) || "General";
-    const peers = squadMap.get(squad) || [];
-    peers.push(performer);
-    squadMap.set(squad, peers);
-  }
-
-  const miniTeams: TeamDashboardMiniTeam[] = Array.from(squadMap.entries())
-    .map(([name, performers]) => {
-      const points = performers.reduce((sum, p) => sum + p.score, 0);
-      return {
-        name,
-        rank: 0,
-        points,
-        growth: 0,
-        icon: initials(name),
-        performers: performers.sort((a, b) => b.score - a.score)
-      };
-    })
-    .sort((a, b) => b.points - a.points)
-    .map((item, index) => ({ ...item, rank: index + 1 }));
+  
+    const groupMap = new Map<string, TeamDashboardPerformer[]>();
+    for (const [email, performer] of performerMap.entries()) {
+      const groupName = memberGroupMap.get(email) || "General";
+      const peers = groupMap.get(groupName) || [];
+      peers.push(performer);
+      groupMap.set(groupName, peers);
+    }
+  
+    const miniTeams: TeamDashboardMiniTeam[] = Array.from(groupMap.entries())
+      .map(([name, performers]) => {
+        const points = performers.reduce((sum, p) => sum + p.score, 0);
+        // Generate a slug from the name if none exists in the data
+        const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+        return {
+          slug,
+          name,
+          rank: 0,
+          points,
+          growth: 0,
+          icon: initials(name),
+          performers: performers.sort((a, b) => b.score - a.score)
+        };
+      })
+      .sort((a, b) => b.points - a.points)
+      .map((item, index) => ({ ...item, rank: index + 1 }));
 
   const totalPoints = miniTeams.reduce((sum, item) => sum + item.points, 0);
   const completedActions = miniTeams
     .flatMap((item) => item.performers)
     .reduce((sum, p) => sum + p.metrics.mous + p.metrics.coldCalls + p.metrics.followups, 0);
 
-  const lastSyncSnapshot = await firestore
-    .collection("syncRuns")
-    .orderBy("syncStart", "desc")
-    .limit(1)
-    .get();
-  
-  const lastSyncDoc = lastSyncSnapshot.docs[0]?.data();
-  const lastSyncTime = lastSyncDoc?.syncStart || new Date().toISOString();
-  const intervalMinutes = config.syncScheduler.intervalMinutes;
-  const nextSyncTime = syncState.nextSyncTime;
-
   return {
-    name: prettifyTeamSlug(team),
-    displayName: `${prettifyTeamSlug(team)} Performance Dashboard`,
+    name: level === "function" ? targetSlug.toUpperCase() : prettifyTeamSlug(targetSlug),
+    displayName: `${level === "function" ? targetSlug.toUpperCase() : prettifyTeamSlug(targetSlug)} Performance Dashboard`,
+    functionSlug: docs[0]?.function_slug || "b2b",
     miniTeams,
     totalPoints,
     totalGrowth: 0,
@@ -156,9 +143,9 @@ export async function getTeamDashboard(
     asOfDate: dateKey,
     period,
     syncInfo: {
-      lastSyncTime,
-      nextSyncTime,
-      intervalMinutes
+      lastSyncTime: nowIso(), // Fallback
+      nextSyncTime: nowIso(),
+      intervalMinutes: config.syncScheduler.intervalMinutes
     }
   };
 }
