@@ -163,23 +163,44 @@ export async function getMktDashboard(title: string = "MKT", filterByPosition?: 
   const groupMap = new Map<string, TeamDashboardPerformer[]>();
   
   for (const m of members) {
-    const position = String(m.Position || "Member").trim().toLowerCase();
+    const rawPosition = String(m.Position || "Member").trim();
+    let teamPrefix = "";
+    let roleName = rawPosition;
+
+    if (rawPosition.includes("|")) {
+      const parts = rawPosition.split("|");
+      teamPrefix = parts[0]?.trim() || "";
+      roleName = parts[1]?.trim() || rawPosition;
+    }
+
+    const roleLower = roleName.toLowerCase();
     
-    // If filtering is requested, only include matching positions
-    if (filterByPosition && position !== filterByPosition.toLowerCase()) continue;
+    // If filtering is requested, only include matching positions (now checking the parsed role)
+    if (filterByPosition && roleLower !== filterByPosition.toLowerCase()) continue;
 
     let groupName = "Members";
-    if (position === "tl") {
+    let normalizedRole = roleName.charAt(0).toUpperCase() + roleName.slice(1).toLowerCase();
+
+    if (roleLower === "tl") {
       groupName = "TLs";
-    } else if (position !== "member") {
-      groupName = position.charAt(0).toUpperCase() + position.slice(1);
+      normalizedRole = "TL";
+    } else if (roleLower === "member") {
+      groupName = "Members";
+      normalizedRole = "Member";
+    } else {
+      groupName = normalizedRole;
+    }
+
+    // Special grouping for MST: Use the team prefix (e.g. "T01") as the group name if present
+    if (title === "MST" && teamPrefix) {
+      groupName = teamPrefix;
     }
     
     const performers = groupMap.get(groupName) || [];
     performers.push({
       email: `${m.Member.toLowerCase().replace(/\s+/g, '.')}_mkt@example.com`,
       name: m.Member,
-      role: groupName,
+      role: normalizedRole,
       score: Number(m.Points || 0),
       avatar: initials(m.Member),
       metrics: { mous: 0, coldCalls: 0, followups: 0 }
