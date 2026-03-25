@@ -44,6 +44,15 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok", timezone: config.timezone });
 });
 
+app.get("/sync/run", (_req, res) => {
+  res.status(200).send(`
+    <h1>📡 Marathon Sync Endpoint</h1>
+    <p>This endpoint is active and healthy.</p>
+    <p>To trigger a synchronization, please send a <strong>POST</strong> request.</p>
+    <p>Current Server Time: ${new Date().toISOString()}</p>
+  `);
+});
+
 app.post("/sync/run", async (_req, res) => {
   if (schedulerBusy) {
     res.status(429).json({ ok: false, error: "Sync already in progress." });
