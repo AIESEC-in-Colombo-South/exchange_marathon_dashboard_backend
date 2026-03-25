@@ -191,8 +191,8 @@ export async function getMktDashboard(title: string = "MKT", filterByPosition?: 
       groupName = normalizedRole;
     }
 
-    // Special grouping for MST: Use the team prefix (e.g. "T01") as the group name if present
-    if (title === "MST" && teamPrefix) {
+    // Use the team prefix (e.g. "T01") as the group name if present
+    if (teamPrefix) {
       groupName = teamPrefix;
     }
     
@@ -242,5 +242,116 @@ export async function getMktDashboard(title: string = "MKT", filterByPosition?: 
       nextSyncTime: nowIso(),
       intervalMinutes: config.syncScheduler.intervalMinutes
     }
+  };
+}
+
+export async function getIRMTeamDashboard(
+  tableName: string,
+  period: string = "marathon"
+): Promise<TeamDashboardPayload> {
+  const supabase = getSupabase() as any;
+  const { data, error } = await supabase
+    .from(tableName)
+    .select("*")
+    .order("total_points", { ascending: false });
+
+  if (error) throw error;
+  const rows = data || [];
+
+  const performers: TeamDashboardPerformer[] = rows.map((r: any) => ({
+    email: `${r.name.toLowerCase().replace(/\s+/g, ".")}_irm@example.com`,
+    name: r.name,
+    role: "IRM Member",
+    score: Number(r.total_points || 0),
+    avatar: initials(r.name),
+    metrics: {
+      mous: Number(r.ir_applications || 0),
+      coldCalls: Number(r.ir_calls || 0),
+      followups: Number(r.ir_approvals || 0),
+    },
+  }));
+
+  const miniTeams: TeamDashboardMiniTeam[] = [
+    {
+      slug: tableName,
+      name: prettifyTeamSlug(tableName),
+      rank: 1,
+      points: performers.reduce((sum, p) => sum + p.score, 0),
+      growth: 0,
+      icon: "IR",
+      performers: performers.sort((a, b) => b.score - a.score),
+    },
+  ];
+
+  return {
+    name: prettifyTeamSlug(tableName),
+    displayName: `${prettifyTeamSlug(tableName)} Performance Dashboard`,
+    functionSlug: "irm",
+    miniTeams,
+    totalPoints: miniTeams[0].points,
+    totalGrowth: 0,
+    completedActions: performers.reduce((sum, p) => sum + p.metrics.mous + p.metrics.coldCalls + p.metrics.followups, 0),
+    weeklyGrowth: 0,
+    asOfDate: currentDateKey(),
+    period: period as any,
+    syncInfo: {
+      lastSyncTime: nowIso(),
+      nextSyncTime: nowIso(),
+      intervalMinutes: config.syncScheduler.intervalMinutes,
+    },
+  };
+}
+
+export async function getMarcomDashboardFromTable(): Promise<TeamDashboardPayload> {
+  const supabase = getSupabase() as any;
+  const { data, error } = await supabase
+    .from("marcom")
+    .select("*")
+    .order("total_points", { ascending: false });
+
+  if (error) throw error;
+  const rows = data || [];
+
+  const performers: TeamDashboardPerformer[] = rows.map((r: any) => ({
+    email: `${r.name.toLowerCase().replace(/\s+/g, ".")}_marcom@example.com`,
+    name: r.name,
+    role: "Marcom Member",
+    score: Number(r.total_points || 0),
+    avatar: initials(r.name),
+    metrics: {
+      mous: Number(r.flyers || 0),
+      coldCalls: Number(r.videos || 0),
+      followups: Number(r.presentations || 0),
+    },
+  }));
+
+  const miniTeams: TeamDashboardMiniTeam[] = [
+    {
+      slug: "marcom",
+      name: "Marcom",
+      rank: 1,
+      points: performers.reduce((sum, p) => sum + p.score, 0),
+      growth: 0,
+      icon: "MC",
+      performers: performers.sort((a, b) => b.score - a.score),
+    },
+  ];
+
+  return {
+    name: "MARCOM",
+    displayName: "Marcom Performance Dashboard",
+    functionSlug: "marcom",
+    miniTeams,
+    totalPoints: miniTeams[0].points,
+    totalGrowth: 0,
+    completedActions: performers.reduce((sum, p) => sum + p.metrics.mous + p.metrics.coldCalls + p.metrics.followups, 0),
+    weeklyGrowth: 0,
+    asOfDate: currentDateKey(),
+    period: "marathon",
+    syncInfo: {
+      lastSyncTime: nowIso(),
+      nextSyncTime: nowIso(),
+      intervalMinutes: config.syncScheduler.intervalMinutes,
+    },
   };
 }

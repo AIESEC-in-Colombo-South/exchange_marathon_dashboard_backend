@@ -1,0 +1,40 @@
+Checking mkt_members table...
+Sample rows from mkt_members:
+┌─────────┬──────┬────────────┬────────────────┬────────┐
+│ (index) │ id   │ Member     │ Position       │ Points │
+├─────────┼──────┼────────────┼────────────────┼────────┤
+│ 0       │ 2919 │ 'Ralph'    │ 'T01 | member' │ 1500   │
+│ 1       │ 2920 │ 'Uvani'    │ 'T01 | member' │ 0      │
+│ 2       │ 2921 │ 'Savya'    │ 'T01 | member' │ 0      │
+│ 3       │ 2922 │ 'Nirusa'   │ 'T02 | member' │ 0      │
+│ 4       │ 2923 │ 'Ravindee' │ 'T02 | member' │ 0      │
+│ 5       │ 2924 │ 'Senuri'   │ 'T02 | member' │ 0      │
+│ 6       │ 2925 │ 'Sandiv'   │ 'T03 | member' │ 20     │
+│ 7       │ 2926 │ 'Nihara'   │ 'T03 | member' │ 0      │
+│ 8       │ 2927 │ 'Sasmitha' │ 'T03 | member' │ 0      │
+│ 9       │ 2928 │ 'Sandeeka' │ 'T04 | member' │ 0      │
+└─────────┴──────┴────────────┴────────────────┴────────┘
+
+Checking marcom API payload...
+MST Dashboard Payload (MiniTeams):
+- Team: T01 (Slug: t01), Points: 1560, Performers: 4
+  * Ralph | Role: Member
+  * Senadi | Role: TL
+- Team: T03 (Slug: t03), Points: 120, Performers: 4
+  * Hasandi | Role: TL
+  * Sandiv | Role: Member
+- Team: T06 (Slug: t06), Points: 80, Performers: 4
+  * Raj | Role: TL
+  * Tharinda | Role: Member
+- Team: T04 (Slug: t04), Points: 10, Performers: 4
+  * Shanaya | Role: TL
+  * Sandeeka | Role: Member
+- Team: T05 (Slug: t05), Points: 0, Performers: 4
+  * Arudgenith | Role: Member
+  * Chelsi | Role: Member
+- Team: T07 (Slug: t07), Points: 0, Performers: 3
+  * Hasini | Role: Member
+  * Sanithu | Role: Member
+- Team: T02 (Slug: t02), Points: 0, Performers: 4
+  * Yasodara | Role: TL
+  * Nirusa | Role: Member

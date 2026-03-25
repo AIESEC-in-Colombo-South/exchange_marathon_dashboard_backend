@@ -107,3 +107,28 @@ export interface MktMember {
   Position: string;
   Points: string | number;
 }
+
+export interface IRMTableEntry {
+  name: string;
+  ir_calls: number;
+  ir_applications: number;
+  ir_approvals: number;
+  total_points: number;
+}
+
+export interface MarcomTableEntry {
+  name: string;
+  flyers: number;
+  videos: number;
+  presentations: number;
+  total_points: number;
+}
+
+export interface SyncTablePayload {
+  tableName: string;
+  rows: (IRMTableEntry | MarcomTableEntry)[];
+}
+
+export interface SyncAllSheetsPayload {
+  tables: SyncTablePayload[];
+}
