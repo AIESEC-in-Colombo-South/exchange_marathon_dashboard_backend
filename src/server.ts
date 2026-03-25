@@ -4,7 +4,13 @@ import type { AddressInfo } from "node:net";
 import { config, assertSyncConfig } from "./config.js";
 import { runSync } from "./sync.js";
 import { syncMktMembers } from "./sync_mkt.js";
-import { getTeamDashboard, getMktDashboard } from "./aggregation.js";
+import { syncAllSheets } from "./sync_irm.js";
+import { 
+  getTeamDashboard, 
+  getMktDashboard, 
+  getIRMTeamDashboard, 
+  getMarcomDashboardFromTable 
+} from "./aggregation.js";
 import { getSupabase } from "./supabase.js";
 const app = express();
 app.use(cors());
@@ -153,6 +159,25 @@ app.post("/sync/run", async (_req, res) => {
   }
 });
 
+app.post("/sync/all-sheets", async (req, res) => {
+  if (schedulerBusy) {
+    res.status(429).json({ ok: false, error: "Sync already in progress." });
+    return;
+  }
+
+  schedulerBusy = true;
+  try {
+    const results = await syncAllSheets(req.body);
+    console.log(`✅ All-sheets sync completed:`, results);
+    res.status(200).json({ ok: true, data: results });
+  } catch (error) {
+    console.error("Manual all-sheets sync failed:", error instanceof Error ? error.message : error);
+    res.status(500).json({ ok: false, error: "Internal server error during sync" });
+  } finally {
+    schedulerBusy = false;
+  }
+});
+
 app.get("/api/dashboard/:team", async (req, res) => {
   const team = String(req.params.team || "").trim().toLowerCase();
   const period = String(req.query.period || "daily") as any;
@@ -161,7 +186,13 @@ app.get("/api/dashboard/:team", async (req, res) => {
   try {
     let payload;
     if (team === "marcom") {
-      payload = await getMktDashboard("MST");
+      try {
+        payload = await getMarcomDashboardFromTable();
+      } catch (e) {
+        payload = await getMktDashboard("MST");
+      }
+    } else if (["irm1_t01", "irm2_t01", "irm1_t02", "irm2_t02"].includes(team)) {
+      payload = await getIRMTeamDashboard(team, period);
     } else if (team === "mkt") {
       payload = await getMktDashboard("MKT");
     } else if (team === "members") {
