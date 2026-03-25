@@ -1,0 +1,45 @@
+MST Dashboard Tests:
+Input: "T01 | member" (Dashboard: MST)
+ - Team Prefix: "T01"
+ - Role Name: "member"
+ - Normalized Role: "Member"
+ - Group Name: "T01"
+---
+Input: "T02 | TL" (Dashboard: MST)
+ - Team Prefix: "T02"
+ - Role Name: "TL"
+ - Normalized Role: "TL"
+ - Group Name: "T02"
+---
+Input: "T03 | Manager" (Dashboard: MST)
+ - Team Prefix: "T03"
+ - Role Name: "Manager"
+ - Normalized Role: "Manager"
+ - Group Name: "T03"
+---
+Input: "member" (Dashboard: MST)
+ - Team Prefix: ""
+ - Role Name: "member"
+ - Normalized Role: "Member"
+ - Group Name: "Members"
+---
+
+MKT Dashboard Tests:
+Input: "T01 | member" (Dashboard: MKT)
+ - Team Prefix: "T01"
+ - Role Name: "member"
+ - Normalized Role: "Member"
+ - Group Name: "Members"
+---
+Input: "TL" (Dashboard: MKT)
+ - Team Prefix: ""
+ - Role Name: "TL"
+ - Normalized Role: "TL"
+ - Group Name: "TLs"
+---
+Input: "member" (Dashboard: MKT)
+ - Team Prefix: ""
+ - Role Name: "member"
+ - Normalized Role: "Member"
+ - Group Name: "Members"
+---
