@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 import { config, assertSyncConfig } from "./config.js";
 import { runSync } from "./sync.js";
 import { syncMktMembers } from "./sync_mkt.js";
-import { getTeamDashboard } from "./aggregation.js";
+import { getTeamDashboard, getMktDashboard } from "./aggregation.js";
 import { getSupabase } from "./supabase.js";
 const app = express();
 app.use(cors());
@@ -159,7 +159,12 @@ app.get("/api/dashboard/:team", async (req, res) => {
   const asOfDate = typeof req.query.asOfDate === "string" ? req.query.asOfDate : undefined;
 
   try {
-    const payload = await getTeamDashboard(team, period, asOfDate);
+    let payload;
+    if (team === "mkt") {
+      payload = await getMktDashboard();
+    } else {
+      payload = await getTeamDashboard(team, period, asOfDate);
+    }
     res.status(200).json({ ok: true, data: payload });
   } catch (error) {
     res.status(500).json({ ok: false, error: error instanceof Error ? error.message : "Dashboard error" });
@@ -187,17 +192,21 @@ app.post("/sync/mkt", async (_req, res) => {
     return;
   }
 
-  res.status(202).json({ 
-    ok: true, 
-    message: "MKT sync triggered and running in background." 
-  });
-
   schedulerBusy = true;
   try {
     const result = await syncMktMembers();
     console.log(`Manual MKT sync completed:`, result);
+    if (result.success) {
+      res.status(200).json({ 
+        ok: true, 
+        message: `MKT sync successful. Found ${result.count} members.` 
+      });
+    } else {
+      res.status(500).json({ ok: false, error: result.error });
+    }
   } catch (error) {
     console.error("Manual MKT sync failed:", error instanceof Error ? error.message : error);
+    res.status(500).json({ ok: false, error: "Internal server error during sync" });
   } finally {
     schedulerBusy = false;
   }

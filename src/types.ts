@@ -106,5 +106,4 @@ export interface MktMember {
   Member: string;
   Position: string;
   Points: string | number;
-  updated_at?: string;
 }
