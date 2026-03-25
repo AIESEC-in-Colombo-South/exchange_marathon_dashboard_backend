@@ -24,14 +24,34 @@ export async function syncMktMembers() {
       return { success: true, count: 0 };
     }
 
+    console.log(`📊 Found ${rows.length} rows in MKT sheet. Mapping columns...`);
+    const firstRow = rows[0];
+    const headers = Object.keys(firstRow);
+    console.log(`📝 Headers found in sheet: ${headers.join(", ")}`);
+
+    const findKey = (name: string) => headers.find(h => h.toLowerCase() === name.toLowerCase()) || name;
+    
+    const memberKey = findKey("Member");
+    const positionKey = findKey("Position");
+    const pointsKey = findKey("Points");
+
+    console.log(`🔑 Mapping results: Member -> "${memberKey}", Position -> "${positionKey}", Points -> "${pointsKey}"`);
+
     const records: MktMember[] = rows
-      .map((row) => ({
-        Member: String(row["Member"] || "").trim(),
-        Position: String(row["Position"] || "").trim(),
-        Points: String(row["Points"] || "0").trim(),
-        updated_at: nowIso()
-      }))
+      .map((row) => {
+        const member = String(row[memberKey] || "").trim();
+        const position = String(row[positionKey] || "").trim();
+        const points = String(row[pointsKey] || "0").trim();
+        
+        return {
+          Member: member,
+          Position: position,
+          Points: points
+        };
+      })
       .filter((r) => r.Member !== "" && r.Position !== "");
+
+    console.log(`📦 Prepared ${records.length} MKT records for upsert.`);
 
     if (records.length === 0) {
       console.warn("⚠️ No valid MKT records to sync after filtering empty rows.");

@@ -149,3 +149,68 @@ export async function getTeamDashboard(
     }
   };
 }
+
+export async function getMktDashboard(): Promise<TeamDashboardPayload> {
+  const supabase = getSupabase() as any;
+  const { data, error } = await supabase
+    .from("mkt_members")
+    .select("*")
+    .order("Points", { ascending: false });
+
+  if (error) throw error;
+  const members = data || [];
+
+  const groupMap = new Map<string, TeamDashboardPerformer[]>();
+  
+  for (const m of members) {
+    const position = String(m.Position || "Member").trim();
+    const groupName = position.charAt(0).toUpperCase() + position.slice(1).toLowerCase();
+    
+    const performers = groupMap.get(groupName) || [];
+    performers.push({
+      email: `${m.Member.toLowerCase().replace(/\s+/g, '.')}_mkt@example.com`, // Synthetic email
+      name: m.Member,
+      role: groupName,
+      score: Number(m.Points || 0),
+      avatar: initials(m.Member),
+      metrics: { mous: 0, coldCalls: 0, followups: 0 } // Metrics not tracked for MKT
+    });
+    groupMap.set(groupName, performers);
+  }
+
+  const miniTeams: TeamDashboardMiniTeam[] = Array.from(groupMap.entries())
+    .map(([name, performers]) => {
+      const points = performers.reduce((sum, p) => sum + p.score, 0);
+      return {
+        slug: name.toLowerCase(),
+        name,
+        rank: 0,
+        points,
+        growth: 0,
+        icon: initials(name),
+        performers: performers.sort((a, b) => b.score - a.score)
+      };
+    })
+    .sort((a, b) => b.points - a.points)
+    .map((t, i) => ({ ...t, rank: i + 1 }));
+
+  const totalPoints = miniTeams.reduce((sum, t) => sum + t.points, 0);
+
+  return {
+    name: "MKT",
+    displayName: "Marketing Performance Dashboard",
+    functionSlug: "mkt",
+    miniTeams,
+    totalPoints,
+    totalGrowth: 0,
+    completedActions: 0,
+    weeklyGrowth: 0,
+    asOfDate: currentDateKey(),
+    period: "marathon",
+    syncInfo: {
+      lastSyncTime: nowIso(),
+      nextSyncTime: nowIso(),
+      intervalMinutes: config.syncScheduler.intervalMinutes
+    }
+  };
+}
