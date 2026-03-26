@@ -466,3 +466,73 @@ export async function getMarcomDashboardFromTable(): Promise<TeamDashboardPayloa
     },
   };
 }
+
+export async function getB2BDashboardFromTable(): Promise<TeamDashboardPayload> {
+  const supabase = getSupabase() as any;
+  const { data, error } = await supabase
+    .from("b2b_dashboard_members")
+    .select("*")
+    .order("total_pts", { ascending: false });
+
+  if (error) throw error;
+  const rows = data || [];
+
+  const teamMap = new Map<string, TeamDashboardPerformer[]>();
+
+  for (const row of rows) {
+    const teamName = String(row.team_name || "B2B").trim() || "B2B";
+    const members = teamMap.get(teamName) || [];
+    const memberName = String(row.member_name || "Unknown").trim() || "Unknown";
+
+    members.push({
+      email: String(row.email_address || `${memberName.toLowerCase().replace(/\s+/g, ".")}@example.com`),
+      name: memberName,
+      role: String(row.role || "B2B Member"),
+      score: Number(row.total_pts || 0),
+      avatar: initials(memberName),
+      metrics: {
+        mous: Number(row.mous || 0),
+        coldCalls: Number(row.cold_calls || 0),
+        followups: Number(row.followups || 0)
+      }
+    });
+
+    teamMap.set(teamName, members);
+  }
+
+  const miniTeams: TeamDashboardMiniTeam[] = Array.from(teamMap.entries())
+    .map(([name, performers]) => ({
+      slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, ""),
+      name,
+      rank: 0,
+      points: performers.reduce((sum, p) => sum + p.score, 0),
+      growth: 0,
+      icon: initials(name),
+      performers: performers.sort((a, b) => b.score - a.score)
+    }))
+    .sort((a, b) => b.points - a.points)
+    .map((team, index) => ({ ...team, rank: index + 1 }));
+
+  const totalPoints = miniTeams.reduce((sum, team) => sum + team.points, 0);
+  const completedActions = miniTeams
+    .flatMap((team) => team.performers)
+    .reduce((sum, performer) => sum + performer.metrics.mous + performer.metrics.coldCalls + performer.metrics.followups, 0);
+
+  return {
+    name: "IGV",
+    displayName: "Incoming Global Volunteer - B2B",
+    functionSlug: "igv_b2b",
+    miniTeams,
+    totalPoints,
+    totalGrowth: 0,
+    completedActions,
+    weeklyGrowth: 0,
+    asOfDate: currentDateKey(),
+    period: "marathon",
+    syncInfo: {
+      lastSyncTime: nowIso(),
+      nextSyncTime: nowIso(),
+      intervalMinutes: config.syncScheduler.intervalMinutes
+    }
+  };
+}
