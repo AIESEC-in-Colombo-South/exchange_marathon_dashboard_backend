@@ -9,7 +9,8 @@ import {
   getTeamDashboard, 
   getMktDashboard, 
   getIRMTeamDashboard, 
-  getMarcomDashboardFromTable 
+  getMarcomDashboardFromTable,
+  getB2BDashboardFromTable
 } from "./aggregation.js";
 import { getSupabase } from "./supabase.js";
 const app = express();
@@ -178,6 +179,67 @@ app.post("/sync/all-sheets", async (req, res) => {
   }
 });
 
+app.post("/api/sync-b2b", async (req, res) => {
+  const payload = req.body as { data?: any[] };
+  const records = Array.isArray(payload?.data) ? payload.data : [];
+
+  if (records.length === 0) {
+    res.status(400).json({ ok: false, error: "Request body must include a non-empty data array." });
+    return;
+  }
+
+  try {
+    const supabase = getSupabase() as any;
+
+    const mappedRows = records
+      .map((row) => {
+        const memberName = String(row.member_name || "").trim();
+        if (!memberName) return null;
+
+        return {
+          team_name: String(row.team_name || "B2B").trim() || "B2B",
+          email_address: row.email_address ? String(row.email_address).trim() : null,
+          member_name: memberName,
+          role: row.role ? String(row.role).trim() : null,
+          timestamp_text: row.timestamp ? String(row.timestamp).trim() : null,
+          mous: Number(row.mous || 0),
+          cold_calls: Number(row.cold_calls || 0),
+          followups: Number(row.followups || 0),
+          total_pts: Number(row.total_pts || 0),
+          updated_at: new Date().toISOString()
+        };
+      })
+      .filter(Boolean);
+
+    if (mappedRows.length === 0) {
+      res.status(400).json({ ok: false, error: "No valid records found (member_name is required)." });
+      return;
+    }
+
+    const { error: deleteError } = await supabase
+      .from("b2b_dashboard_members")
+      .delete()
+      .neq("id", 0);
+
+    if (deleteError) {
+      throw deleteError;
+    }
+
+    const { error: insertError } = await supabase
+      .from("b2b_dashboard_members")
+      .insert(mappedRows);
+
+    if (insertError) {
+      throw insertError;
+    }
+
+    res.status(200).json({ ok: true, inserted: mappedRows.length });
+  } catch (error) {
+    console.error("B2B sync failed:", error instanceof Error ? error.message : error);
+    res.status(500).json({ ok: false, error: "Internal server error during B2B sync" });
+  }
+});
+
 app.get("/api/dashboard/:team", async (req, res) => {
   const team = String(req.params.team || "").trim().toLowerCase();
   const period = String(req.query.period || "daily") as any;
@@ -191,6 +253,8 @@ app.get("/api/dashboard/:team", async (req, res) => {
       } catch (e) {
         payload = await getMktDashboard("MST");
       }
+    } else if (team === "igv_b2b") {
+      payload = await getB2BDashboardFromTable();
     } else if (["irm1_t01", "irm2_t01", "irm1_t02", "irm2_t02"].includes(team)) {
       payload = await getIRMTeamDashboard(team, period);
     } else if (team === "mkt") {
