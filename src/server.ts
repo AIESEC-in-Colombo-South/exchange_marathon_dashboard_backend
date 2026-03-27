@@ -371,6 +371,23 @@ app.post("/sync/igt-b2b", async (req, res) => {
   }
 });
 
+// Fallback for default Apps Script which uses /sync/members
+app.post("/sync/members", async (req, res) => {
+  const { tableName, rows } = req.body as { tableName?: string, rows?: any[] };
+  
+  // If it's the IGT B2B table or has IGT B2B columns, use that logic
+  const isIgtB2B = tableName === "members" || (rows && rows[0] && rows[0].noof_su !== undefined);
+  
+  if (isIgtB2B) {
+    // Redirect to igt-b2b logic (or just execute it here)
+    console.log("Routing /sync/members request to IGT B2B sync...");
+    req.url = "/sync/igt-b2b";
+    return (app as any)._router.handle(req, res, () => {});
+  }
+
+  res.status(404).json({ ok: false, error: "Table sync not configured for this endpoint." });
+});
+
 app.get("/api/dashboard/:team", async (req, res) => {
   const team = String(req.params.team || "").trim().toLowerCase();
   const period = String(req.query.period || "daily") as any;
