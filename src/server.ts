@@ -178,7 +178,6 @@ app.post("/sync/all-sheets", async (req, res) => {
     schedulerBusy = false;
   }
 });
-
 app.post("/api/sync-b2b", async (req, res) => {
   const payload = req.body as { data?: any[] };
   const records = Array.isArray(payload?.data) ? payload.data : [];
@@ -188,6 +187,12 @@ app.post("/api/sync-b2b", async (req, res) => {
     return;
   }
 
+  if (schedulerBusy) {
+    res.status(429).json({ ok: false, error: "Sync already in progress." });
+    return;
+  }
+
+  schedulerBusy = true;
   try {
     const supabase = getSupabase() as any;
 
@@ -237,6 +242,8 @@ app.post("/api/sync-b2b", async (req, res) => {
   } catch (error) {
     console.error("B2B sync failed:", error instanceof Error ? error.message : error);
     res.status(500).json({ ok: false, error: "Internal server error during B2B sync" });
+  } finally {
+    schedulerBusy = false;
   }
 });
 
