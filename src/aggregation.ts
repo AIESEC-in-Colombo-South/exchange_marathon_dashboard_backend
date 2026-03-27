@@ -536,3 +536,80 @@ export async function getB2BDashboardFromTable(): Promise<TeamDashboardPayload> 
     }
   };
 }
+
+export async function getOgtDashboard(): Promise<TeamDashboardPayload> {
+  const supabase = getSupabase() as any;
+  const { data, error } = await supabase
+    .from("ogt_members")
+    .select("*")
+    .order("total_points", { ascending: false });
+
+  if (error) throw error;
+  const rows = data || [];
+
+  const teamMap = new Map<string, TeamDashboardPerformer[]>();
+
+  for (const row of rows) {
+    const teamName = String(row.team_name || "OGT").trim() || "OGT";
+    const members = teamMap.get(teamName) || [];
+    const memberName = String(row.member_name || "Unknown").trim() || "Unknown";
+
+    members.push({
+      email: `${memberName.toLowerCase().replace(/\s+/g, ".")}_ogt@example.com`,
+      name: memberName,
+      role: String(row.member_role || "MEMBER"),
+      score: Math.ceil(Number(row.total_points || 0)),
+      avatar: initials(memberName),
+      metrics: {
+        mous: Number(row.no_of_su || 0),
+        coldCalls: Number(row.no_of_apl || 0), // Use APL for second metric
+        followups: Number(row.no_of_apd || 0), // Use APD for third metric
+        // Additional metrics for OGT
+        ogt_su: Number(row.no_of_su || 0),
+        ogt_apl: Number(row.no_of_apl || 0),
+        ogt_apd: Number(row.no_of_apd || 0),
+        ogt_ir_calls: Number(row.no_of_ir_calls_taken || 0),
+        ogt_campaigns: Number(row.no_of_national_campaigns || 0),
+        ogt_flyers: Number(row.no_of_pre_su_through_opp_flyers || 0)
+      }
+    } as any);
+
+    teamMap.set(teamName, members);
+  }
+
+  const miniTeams: TeamDashboardMiniTeam[] = Array.from(teamMap.entries())
+    .map(([name, performers]) => ({
+      slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, ""),
+      name,
+      rank: 0,
+      points: performers.reduce((sum, p) => sum + p.score, 0),
+      growth: 0,
+      icon: initials(name),
+      performers: performers.sort((a, b) => b.score - a.score)
+    }))
+    .sort((a, b) => b.points - a.points)
+    .map((team, index) => ({ ...team, rank: index + 1 }));
+
+  const totalPoints = miniTeams.reduce((sum, team) => sum + team.points, 0);
+  const completedActions = miniTeams
+    .flatMap((team) => team.performers)
+    .reduce((sum, performer) => sum + performer.metrics.mous + performer.metrics.coldCalls + performer.metrics.followups, 0);
+
+  return {
+    name: "OGT",
+    displayName: "Outgoing Global Talent Performance Dashboard",
+    functionSlug: "ogt",
+    miniTeams,
+    totalPoints,
+    totalGrowth: 0,
+    completedActions,
+    weeklyGrowth: 0,
+    asOfDate: currentDateKey(),
+    period: "marathon",
+    syncInfo: {
+      lastSyncTime: nowIso(),
+      nextSyncTime: nowIso(),
+      intervalMinutes: config.syncScheduler.intervalMinutes
+    }
+  };
+}

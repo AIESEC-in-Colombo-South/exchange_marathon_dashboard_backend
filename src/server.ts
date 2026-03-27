@@ -10,7 +10,8 @@ import {
   getMktDashboard, 
   getIRMTeamDashboard, 
   getMarcomDashboardFromTable,
-  getB2BDashboardFromTable
+  getB2BDashboardFromTable,
+  getOgtDashboard
 } from "./aggregation.js";
 import { getSupabase } from "./supabase.js";
 const app = express();
@@ -178,7 +179,6 @@ app.post("/sync/all-sheets", async (req, res) => {
     schedulerBusy = false;
   }
 });
-
 app.post("/api/sync-b2b", async (req, res) => {
   const payload = req.body as { data?: any[] };
   const records = Array.isArray(payload?.data) ? payload.data : [];
@@ -188,6 +188,12 @@ app.post("/api/sync-b2b", async (req, res) => {
     return;
   }
 
+  if (schedulerBusy) {
+    res.status(429).json({ ok: false, error: "Sync already in progress." });
+    return;
+  }
+
+  schedulerBusy = true;
   try {
     const supabase = getSupabase() as any;
 
@@ -237,6 +243,70 @@ app.post("/api/sync-b2b", async (req, res) => {
   } catch (error) {
     console.error("B2B sync failed:", error instanceof Error ? error.message : error);
     res.status(500).json({ ok: false, error: "Internal server error during B2B sync" });
+  } finally {
+    schedulerBusy = false;
+  }
+});
+
+app.post("/sync/ogt-members", async (req, res) => {
+  const { rows } = req.body as { rows?: any[] };
+  const records = Array.isArray(rows) ? rows : [];
+
+  if (records.length === 0) {
+    res.status(400).json({ ok: false, error: "Request body must include a non-empty rows array." });
+    return;
+  }
+
+  if (schedulerBusy) {
+    res.status(429).json({ ok: false, error: "Sync already in progress." });
+    return;
+  }
+
+  schedulerBusy = true;
+  try {
+    const supabase = getSupabase() as any;
+
+    const mappedRows = records
+      .map((row) => {
+        const memberName = String(row.member_name || "").trim();
+        if (!memberName) return null;
+
+        return {
+          team_name: String(row.team_name || "Unknown").trim(),
+          member_name: memberName,
+          member_role: String(row.member_role || "MEMBER").toUpperCase(),
+          no_of_su: Number(row.no_of_su || 0),
+          no_of_apl: Number(row.no_of_apl || 0),
+          no_of_apd: Number(row.no_of_apd || 0),
+          no_of_ir_calls_taken: Number(row.no_of_ir_calls_taken || 0),
+          no_of_national_campaigns: Number(row.no_of_national_campaigns || 0),
+          no_of_pre_su_through_opp_flyers: Number(row.no_of_pre_su_through_opp_flyers || 0),
+          total_points: Number(row.total_points || 0),
+          updated_at: new Date().toISOString()
+        };
+      })
+      .filter(Boolean);
+
+    if (mappedRows.length === 0) {
+      res.status(400).json({ ok: false, error: "No valid records found (member_name is required)." });
+      return;
+    }
+
+    // Upsert logic: requires UNIQUE (team_name, member_name) in database
+    const { error: upsertError } = await supabase
+      .from("ogt_members")
+      .upsert(mappedRows, { onConflict: "team_name,member_name" });
+
+    if (upsertError) {
+      throw upsertError;
+    }
+
+    res.status(200).json({ ok: true, upserted: mappedRows.length });
+  } catch (error) {
+    console.error("OGT sync failed:", error instanceof Error ? error.message : error);
+    res.status(500).json({ ok: false, error: "Internal server error during OGT sync" });
+  } finally {
+    schedulerBusy = false;
   }
 });
 
@@ -255,6 +325,8 @@ app.get("/api/dashboard/:team", async (req, res) => {
       }
     } else if (team === "igv_b2b") {
       payload = await getB2BDashboardFromTable();
+    } else if (team === "ogt") {
+      payload = await getOgtDashboard();
     } else if (["irm1_t01", "irm2_t01", "irm1_t02", "irm2_t02"].includes(team)) {
       payload = await getIRMTeamDashboard(team, period);
     } else if (team === "mkt") {
