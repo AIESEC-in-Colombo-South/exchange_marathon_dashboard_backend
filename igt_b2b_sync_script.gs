@@ -1,7 +1,5 @@
 /*************************************************
- * IGT B2B MEMBERS SHEET SYNC
- * This script syncs the IGT B2B Members sheet to the dashboard.
- * It includes individual scores and team rewards/totals.
+ * IGT B2B MEMBERS SHEET SYNC (FINALLY ADJUSTED)
  *************************************************/
 
 const BACKEND_URL = "https://exchange-marathon-dashboard-backend.onrender.com";
@@ -9,7 +7,7 @@ const BACKEND_URL = "https://exchange-marathon-dashboard-backend.onrender.com";
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu("Dashboard Sync")
-    .addItem("Sync IGT B2B Data", "syncIgtB2BSheet")
+    .addItem("Sync IGT B2B Members", "syncIgtB2BSheet")
     .addToUi();
 }
 
@@ -18,7 +16,7 @@ function onOpen() {
  */
 function syncIgtB2BSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  // Ensure this matches your actual sheet name (e.g., "Members" or "IGT B2B")
+  // Ensure this matches your sheet name - exactly as it appears
   const sheet = ss.getSheetByName("Members") || ss.getActiveSheet(); 
 
   const data = sheet.getDataRange().getValues();
@@ -33,16 +31,19 @@ function syncIgtB2BSheet() {
 
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
-    // Skip completely empty rows
+    // Skip empty rows
     if (row.every(cell => cell === "" || cell === null)) continue;
     
-    // Skip if "Name" column (column B / index 1) is empty
+    // Check if Name exists (Column B / Index 1)
     if (!row[1]) continue;
 
     const obj = {};
     headers.forEach((header, index) => {
       obj[header] = cleanValue(row[index]);
     });
+    
+    // Explicitly add a helper for the team totals
+    // The backend is already expecting 'team_totals' and rewards
     rows.push(obj);
   }
 
@@ -65,14 +66,16 @@ function syncIgtB2BSheet() {
       SpreadsheetApp.getUi().alert("Sync Error: " + result.error);
     }
   } catch (e) {
-    SpreadsheetApp.getUi().alert("Connection Failed: " + e.toString());
+    SpreadsheetApp.getUi().alert("Connection Failed: Ensure the backend is awake.");
   }
 }
 
-// ===== HELPERS =====
+// ===== HELPERS (CRITICAL FOR MAPPING) =====
 
 /**
- * Normalizes headers to DB-friendly slugs
+ * Normalizes headers.
+ * "Team meeting (online/physical)" becomes "team_meeting_onlinephysical"
+ * "Team Totals" becomes "team_totals"
  */
 function normalizeHeader(header) {
   return String(header)
@@ -82,9 +85,6 @@ function normalizeHeader(header) {
     .replace(/[^\w]/g, "");
 }
 
-/**
- * Cleans cell values for JSON safety
- */
 function cleanValue(value) {
   if (value === "" || value === null || value === undefined) return 0;
   if (typeof value === "number") return value;

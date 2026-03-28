@@ -4,7 +4,12 @@
 ALTER TABLE igt_b2b_members 
 ADD COLUMN IF NOT EXISTS team_meeting INTEGER DEFAULT 0,
 ADD COLUMN IF NOT EXISTS team_cold_calls_bonus INTEGER DEFAULT 0,
-ADD COLUMN IF NOT EXISTS team_totals NUMERIC DEFAULT 0;
+ADD COLUMN IF NOT EXISTS team_totals NUMERIC DEFAULT 0,
+ADD COLUMN IF NOT EXISTS meetings_scheduled INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS leads_generated INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS contracts_signed INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS training_attendance INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS proposals_emails_sent INTEGER DEFAULT 0;
 
 -- 2. Verify columns (optional, for manual check)
 -- SELECT column_name, data_type 
