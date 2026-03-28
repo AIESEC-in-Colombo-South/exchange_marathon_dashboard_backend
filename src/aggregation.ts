@@ -653,6 +653,7 @@ export async function getIgtB2BDashboard(): Promise<TeamDashboardPayload> {
         followups: Number(row.follow_ups || 0),
         igt_cold_calls: Number(row.cold_calls || 0),
         igt_follow_ups: Number(row.follow_ups || 0),
+        igt_proposals: Number(row.proposals_emails_sent || 0),
         igt_meetings: Number(row.meetings_scheduled || 0),
         igt_leads: Number(row.leads_generated || 0),
         igt_contracts: Number(row.contracts_signed || 0),

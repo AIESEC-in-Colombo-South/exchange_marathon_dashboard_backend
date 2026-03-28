@@ -341,6 +341,7 @@ app.post("/sync/igt-b2b", async (req, res) => {
           member_role: String(row.role || "MEMBER").trim(),
           cold_calls: Number(row.cold_calls || 0),
           follow_ups: Number(row.follow_ups || 0),
+          proposals_emails_sent: Number(row.proposals_emails_sent || row.proposals_emails_sent || 0),
           meetings_scheduled: Number(row.meetings_scheduled || 0),
           leads_generated: Number(row.leads_generated || 0),
           contracts_signed: Number(row.contracts_signed || 0),
