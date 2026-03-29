@@ -2,6 +2,10 @@ import { getSupabase } from "./supabase.js";
 import type { IgvIrmSyncPayload } from "./types.js";
 
 export async function syncIgvIrmData(payload: IgvIrmSyncPayload) {
+  if (!payload) {
+    throw new Error("Missing sync payload. Ensure your Apps Script is sending the data correctly.");
+  }
+
   const supabase = getSupabase() as any;
   const results: Record<string, { count: number; status: string }> = {};
 
