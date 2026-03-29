@@ -5,7 +5,7 @@ import { config, assertSyncConfig } from "./config.js";
 import { runSync } from "./sync.js";
 import { syncMktMembers } from "./sync_mkt.js";
 import { syncAllSheets } from "./sync_irm.js";
-import { syncIgvIrmData } from "./sync_igt_ir_m.js";
+import { syncIgvIrmData, syncIgtIrmData } from "./sync_igt_ir_m.js";
 import { 
   getTeamDashboard, 
   getMktDashboard, 
@@ -14,7 +14,8 @@ import {
   getB2BDashboardFromTable,
   getOgtDashboard,
   getIgtB2BDashboard,
-  getIgvIrmDashboard
+  getIgvIrmDashboard,
+  getIgtIrmDashboard
 } from "./aggregation.js";
 import { getSupabase } from "./supabase.js";
 const app = express();
@@ -398,6 +399,26 @@ app.post("/sync/igt-ir-m", async (req, res) => {
   }
 });
 
+app.post("/sync/igt-dashboard", async (req, res) => {
+  if (schedulerBusy) {
+    res.status(429).json({ ok: false, error: "Sync already in progress." });
+    return;
+  }
+
+  schedulerBusy = true;
+  try {
+    const results = await syncIgtIrmData(req.body);
+    console.log(`✅ iGT IR&M sync completed:`, results);
+    res.status(200).json({ ok: true, data: results });
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error("Manual iGT IR&M sync failed:", errorMsg);
+    res.status(500).json({ ok: false, error: errorMsg });
+  } finally {
+    schedulerBusy = false;
+  }
+});
+
 // Fallback for default Apps Script which uses /sync/members
 app.post("/sync/members", async (req, res) => {
   const { tableName, rows } = req.body as { tableName?: string, rows?: any[] };
@@ -432,7 +453,9 @@ app.get("/api/dashboard/:team", async (req, res) => {
       payload = await getB2BDashboardFromTable();
     } else if (team === "igt_b2b") {
       payload = await getIgtB2BDashboard();
-    } else if (team === "igt-ir-m" || team === "igv_ir_m" || team === "igv_ir") {
+    } else if (team === "igt-ir-m") {
+      payload = await getIgtIrmDashboard();
+    } else if (team === "igv_ir_m" || team === "igv_ir") {
       payload = await getIgvIrmDashboard();
     } else if (team === "ogt") {
       payload = await getOgtDashboard();

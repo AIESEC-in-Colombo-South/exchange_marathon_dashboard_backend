@@ -1,5 +1,5 @@
 import { getSupabase } from "./supabase.js";
-import type { IgvIrmSyncPayload } from "./types.js";
+import type { IgvIrmSyncPayload, IgtIrmSyncPayload } from "./types.js";
 
 export async function syncIgvIrmData(payload: IgvIrmSyncPayload) {
   if (!payload) {
@@ -89,6 +89,71 @@ export async function syncIgvIrmData(payload: IgvIrmSyncPayload) {
         status: `error: ${errorMsg}` 
       };
       // We throw here to make the whole request fail so the user sees it in Apps Script
+      throw new Error(`Sync failed for ${tableName}: ${errorMsg}`);
+    }
+  }
+
+  return results;
+}
+
+export async function syncIgtIrmData(payload: IgtIrmSyncPayload) {
+  if (!payload) {
+    throw new Error("Missing sync payload.");
+  }
+
+  const supabase = getSupabase() as any;
+  const results: Record<string, { count: number; status: string }> = {};
+
+  const syncConfigs = [
+    {
+      tableName: "igt_ir_members",
+      rows: payload.igt_ir_members,
+    },
+    {
+      tableName: "igt_matching_members",
+      rows: payload.igt_matching_members,
+    },
+  ];
+
+  for (const config of syncConfigs) {
+    const { tableName, rows } = config;
+    try {
+      if (!rows || !Array.isArray(rows)) {
+        throw new Error(`Invalid row data for ${tableName}`);
+      }
+      
+      console.log(`🔄 Syncing table: ${tableName} with ${rows.length} rows...`);
+
+      // 1. Clear existing data
+      const { error: deleteError } = await supabase
+        .from(tableName)
+        .delete()
+        .neq("id", -1);
+
+      if (deleteError) {
+        throw new Error(`Failed to clear table ${tableName}: ${deleteError.message}`);
+      }
+
+      // 2. Insert rows
+      if (rows.length > 0) {
+        const { error: insertError } = await supabase
+          .from(tableName)
+          .insert(rows);
+
+        if (insertError) {
+          throw new Error(`Failed to insert into ${tableName}: ${insertError.message}`);
+        }
+      }
+
+      results[tableName] = { count: rows.length, status: "success" };
+      console.log(`✅ Table ${tableName} synced successfully.`);
+    } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : String(e);
+      console.error(`❌ Error syncing table ${tableName}:`, errorMsg);
+      results[tableName] = { 
+        count: 0, 
+        status: `error: ${errorMsg}` 
+      };
       throw new Error(`Sync failed for ${tableName}: ${errorMsg}`);
     }
   }

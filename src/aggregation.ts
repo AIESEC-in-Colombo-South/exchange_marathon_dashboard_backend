@@ -467,6 +467,97 @@ export async function getMarcomDashboardFromTable(): Promise<TeamDashboardPayloa
   };
 }
 
+export async function getIgtIrmDashboard(): Promise<TeamDashboardPayload> {
+  const supabase = getSupabase() as any;
+  
+  const [irRes, matchingRes] = await Promise.all([
+    supabase.from("igt_ir_members").select("*").order("points", { ascending: false }),
+    supabase.from("igt_matching_members").select("*").order("points", { ascending: false })
+  ]);
+
+  if (irRes.error) throw irRes.error;
+  if (matchingRes.error) throw matchingRes.error;
+
+  const irRows = irRes.data || [];
+  const matchingRows = matchingRes.data || [];
+
+  const irPerformers: (TeamDashboardPerformer & { source: string })[] = irRows.map((r: any) => ({
+    email: `${r.name.toLowerCase().replace(/\s+/g, ".")}_igtir@example.com`,
+    name: r.name,
+    role: r.role || "Member",
+    source: "ir",
+    score: Math.round(Number(r.points || 0)),
+    avatar: initials(r.name),
+    metrics: {
+      mous: Math.round(Number(r.ir_calls_scheduled || 0)),
+      coldCalls: Math.round(Number(r.ir_cvs_collected || 0)),
+      followups: Math.round(Number(r.ir_calls_participated || 0)),
+      // Extra identifiers for frontend
+      igt_ir_calls: Math.round(Number(r.ir_calls_scheduled || 0)),
+      igt_ir_cvs: Math.round(Number(r.ir_cvs_collected || 0)),
+      igt_ir_participated: Math.round(Number(r.ir_calls_participated || 0))
+    } as any
+  }));
+
+  const matchingPerformers: (TeamDashboardPerformer & { source: string })[] = matchingRows.map((r: any) => ({
+    email: `${r.name.toLowerCase().replace(/\s+/g, ".")}_igtmatching@example.com`,
+    name: r.name,
+    role: r.role || "Member",
+    source: "matching",
+    score: Math.round(Number(r.points || 0)),
+    avatar: initials(r.name),
+    metrics: {
+      mous: Math.round(Number(r.eps_reached_out_to || 0)),
+      coldCalls: Math.round(Number(r.interviews_scheduled || 0)),
+      followups: Math.round(Number(r.interviews_successful || 0)),
+      // Extra identifiers for frontend
+      igt_m_outreach: Math.round(Number(r.eps_reached_out_to || 0)),
+      igt_m_interviews: Math.round(Number(r.interviews_scheduled || 0)),
+      igt_m_success: Math.round(Number(r.interviews_successful || 0)),
+      igt_m_apds: Math.round(Number(r.apds || 0))
+    } as any
+  }));
+
+  const miniTeams: TeamDashboardMiniTeam[] = [
+    {
+      slug: "ir",
+      name: "IR",
+      rank: 1,
+      points: irPerformers.reduce((s, p) => s + p.score, 0),
+      growth: 0,
+      icon: "IR",
+      performers: irPerformers.sort((a,b) => b.score - a.score)
+    },
+    {
+      slug: "matching",
+      name: "Matching",
+      rank: 2,
+      points: matchingPerformers.reduce((s, p) => s + p.score, 0),
+      growth: 0,
+      icon: "MA",
+      performers: matchingPerformers.sort((a,b) => b.score - a.score)
+    }
+  ].sort((a, b) => b.points - a.points).map((t, i) => ({ ...t, rank: i + 1 }));
+
+  return {
+    name: "iGT IR & M",
+    displayName: "iGT IR & Matching Performance Dashboard",
+    functionSlug: "igt_ir_m",
+    miniTeams,
+    totalPoints: miniTeams.reduce((s, t) => s + t.points, 0),
+    totalGrowth: 0,
+    completedActions: [...irPerformers, ...matchingPerformers].reduce((s, p) => s + p.metrics.mous + p.metrics.coldCalls + p.metrics.followups, 0),
+    weeklyGrowth: 0,
+    asOfDate: currentDateKey(),
+    period: "marathon",
+    syncInfo: {
+      lastSyncTime: nowIso(),
+      nextSyncTime: nowIso(),
+      intervalMinutes: 0
+    }
+  };
+}
+
 export async function getB2BDashboardFromTable(): Promise<TeamDashboardPayload> {
   const supabase = getSupabase() as any;
   const { data, error } = await supabase
