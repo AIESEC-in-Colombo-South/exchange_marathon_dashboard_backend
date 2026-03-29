@@ -708,3 +708,110 @@ export async function getIgtB2BDashboard(): Promise<TeamDashboardPayload> {
     }
   };
 }
+
+export async function getIgvIrmDashboard(): Promise<TeamDashboardPayload> {
+  const supabase = getSupabase() as any;
+  
+  // Fetch from three tables
+  const [matchingRes, irRes, marcomRes] = await Promise.all([
+    supabase.from("matching_members").select("*").order("total", { ascending: false }),
+    supabase.from("ir_members").select("*").order("total", { ascending: false }),
+    supabase.from("marcom_members").select("*").order("total", { ascending: false })
+  ]);
+
+  if (matchingRes.error) throw matchingRes.error;
+  if (irRes.error) throw irRes.error;
+  if (marcomRes.error) throw marcomRes.error;
+
+  const matchingRows = matchingRes.data || [];
+  const irRows = irRes.data || [];
+  const marcomRows = marcomRes.data || [];
+
+  // Map to Performer interface
+  const matchingPerformers: TeamDashboardPerformer[] = matchingRows.map((r: any) => ({
+    email: `${r.name.toLowerCase().replace(/\s+/g, ".")}_matching@example.com`,
+    name: r.name,
+    role: r.role || "Member",
+    score: Number(r.total || 0),
+    avatar: initials(r.name),
+    metrics: {
+      mous: Number(r.matching_interviews || 0),
+      coldCalls: Number(r.acceptance || 0),
+      followups: Number(r.approvals || 0)
+    }
+  }));
+
+  const irPerformers: TeamDashboardPerformer[] = irRows.map((r: any) => ({
+    email: `${r.name.toLowerCase().replace(/\s+/g, ".")}_ir@example.com`,
+    name: r.name,
+    role: r.role || "Member",
+    score: Number(r.total || 0),
+    avatar: initials(r.name),
+    metrics: {
+      mous: Number(r.ir_calls || 0),
+      coldCalls: Number(r.ir_application || 0),
+      followups: Number(r.ir_approvals || 0)
+    }
+  }));
+
+  const marcomPerformers: TeamDashboardPerformer[] = marcomRows.map((r: any) => ({
+    email: `${r.name.toLowerCase().replace(/\s+/g, ".")}_marcom@example.com`,
+    name: r.name,
+    role: r.role || "Member",
+    score: Number(r.total || 0),
+    avatar: initials(r.name),
+    metrics: {
+      mous: Number(r.flyers || 0),
+      coldCalls: Number(r.videos || 0),
+      followups: Number(r.presentations || 0)
+    }
+  }));
+
+  const miniTeams: TeamDashboardMiniTeam[] = [
+    {
+      slug: "matching",
+      name: "Matching",
+      rank: 1,
+      points: matchingPerformers.reduce((s, p) => s + p.score, 0),
+      growth: 0,
+      icon: "MT",
+      performers: matchingPerformers.sort((a,b) => b.score - a.score)
+    },
+    {
+      slug: "ir",
+      name: "IR",
+      rank: 2,
+      points: irPerformers.reduce((s, p) => s + p.score, 0),
+      growth: 0,
+      icon: "IR",
+      performers: irPerformers.sort((a,b) => b.score - a.score)
+    },
+    {
+      slug: "marcom",
+      name: "Marcom",
+      rank: 3,
+      points: marcomPerformers.reduce((s, p) => s + p.score, 0),
+      growth: 0,
+      icon: "MC",
+      performers: marcomPerformers.sort((a,b) => b.score - a.score)
+    }
+  ].sort((a, b) => b.points - a.points).map((t, i) => ({ ...t, rank: i + 1 }));
+
+  return {
+    name: "IGV IR & M",
+    displayName: "IGV IR & Matching Performance Dashboard",
+    functionSlug: "igv_ir_m",
+    miniTeams,
+    totalPoints: miniTeams.reduce((s, t) => s + t.points, 0),
+    totalGrowth: 0,
+    completedActions: miniTeams.flatMap(t => t.performers).reduce((s, p) => s + p.metrics.mous + p.metrics.coldCalls + p.metrics.followups, 0),
+    weeklyGrowth: 0,
+    asOfDate: currentDateKey(),
+    period: "marathon",
+    syncInfo: {
+      lastSyncTime: nowIso(),
+      nextSyncTime: nowIso(),
+      intervalMinutes: 0
+    }
+  };
+}

@@ -12,11 +12,22 @@ function onOpen() {
 }
 
 /**
+ * Test Connection function
+ */
+function testConnection() {
+  try {
+    const response = UrlFetchApp.fetch(`${BACKEND_URL}/health`, { muteHttpExceptions: true });
+    SpreadsheetApp.getActiveSpreadsheet().toast(`Backend is awake! Time: ${JSON.parse(response.getContentText()).timezone} ✅`);
+  } catch (e) {
+    SpreadsheetApp.getUi().alert("Backend is still sleeping or unreachable. Please wait 30 seconds and try again.");
+  }
+}
+
+/**
  * Main Sync Function
  */
 function syncIgtB2BSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  // Ensure this matches your sheet name - exactly as it appears
   const sheet = ss.getSheetByName("Members") || ss.getActiveSheet(); 
 
   const data = sheet.getDataRange().getValues();
@@ -25,25 +36,18 @@ function syncIgtB2BSheet() {
     return;
   }
 
-  // Row 1: Headers
   const headers = data[0].map(h => normalizeHeader(h));
   const rows = [];
 
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
-    // Skip empty rows
     if (row.every(cell => cell === "" || cell === null)) continue;
-    
-    // Check if Name exists (Column B / Index 1)
     if (!row[1]) continue;
 
     const obj = {};
     headers.forEach((header, index) => {
       obj[header] = cleanValue(row[index]);
     });
-    
-    // Explicitly add a helper for the team totals
-    // The backend is already expecting 'team_totals' and rewards
     rows.push(obj);
   }
 
@@ -52,21 +56,28 @@ function syncIgtB2BSheet() {
     rows: rows
   };
 
+  SpreadsheetApp.getActiveSpreadsheet().toast("Waking up the backend... Please wait ⏳");
+
   try {
     const response = UrlFetchApp.fetch(`${BACKEND_URL}/sync/igt-b2b`, {
       method: "post",
       contentType: "application/json",
-      payload: JSON.stringify(payload)
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
     });
     
-    const result = JSON.parse(response.getContentText());
+    const responseText = response.getContentText();
+    const result = JSON.parse(responseText);
+    
     if (result.ok) {
       SpreadsheetApp.getActiveSpreadsheet().toast(`Successfully synced ${result.upserted} records ✅`);
     } else {
-      SpreadsheetApp.getUi().alert("Sync Error: " + result.error);
+      SpreadsheetApp.getUi().alert("Sync Error (Backend): " + (result.error || responseText));
     }
   } catch (e) {
-    SpreadsheetApp.getUi().alert("Connection Failed: Ensure the backend is awake.");
+    // If it fails, try a simple wake up GET and tell user to retry
+    try { UrlFetchApp.fetch(BACKEND_URL); } catch(err) {} 
+    SpreadsheetApp.getUi().alert("Connection Failed. The backend is waking up from sleep mode. Please wait 10-20 seconds and click Sync again.");
   }
 }
 
@@ -81,8 +92,9 @@ function normalizeHeader(header) {
   return String(header)
     .trim()
     .toLowerCase()
-    .replace(/\s+/g, "_")
-    .replace(/[^\w]/g, "");
+    .replace(/[^\w\s]/g, "") // Remove special characters like /
+    .replace(/\s+/g, "_")    // Replace spaces with underscores
+    .replace(/_+/g, "_");    // Collapse multiple underscores
 }
 
 function cleanValue(value) {

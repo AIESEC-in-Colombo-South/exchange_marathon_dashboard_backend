@@ -5,6 +5,7 @@ import { config, assertSyncConfig } from "./config.js";
 import { runSync } from "./sync.js";
 import { syncMktMembers } from "./sync_mkt.js";
 import { syncAllSheets } from "./sync_irm.js";
+import { syncIgvIrmData } from "./sync_igt_ir_m.js";
 import { 
   getTeamDashboard, 
   getMktDashboard, 
@@ -12,7 +13,8 @@ import {
   getMarcomDashboardFromTable,
   getB2BDashboardFromTable,
   getOgtDashboard,
-  getIgtB2BDashboard
+  getIgtB2BDashboard,
+  getIgvIrmDashboard
 } from "./aggregation.js";
 import { getSupabase } from "./supabase.js";
 const app = express();
@@ -376,6 +378,25 @@ app.post("/sync/igt-b2b", async (req, res) => {
   }
 });
 
+app.post("/sync/igt-ir-m", async (req, res) => {
+  if (schedulerBusy) {
+    res.status(429).json({ ok: false, error: "Sync already in progress." });
+    return;
+  }
+
+  schedulerBusy = true;
+  try {
+    const results = await syncIgvIrmData(req.body);
+    console.log(`✅ IGV IR&M sync completed:`, results);
+    res.status(200).json({ ok: true, data: results });
+  } catch (error) {
+    console.error("Manual IGV IR&M sync failed:", error instanceof Error ? error.message : error);
+    res.status(500).json({ ok: false, error: "Internal server error during sync" });
+  } finally {
+    schedulerBusy = false;
+  }
+});
+
 // Fallback for default Apps Script which uses /sync/members
 app.post("/sync/members", async (req, res) => {
   const { tableName, rows } = req.body as { tableName?: string, rows?: any[] };
@@ -410,6 +431,8 @@ app.get("/api/dashboard/:team", async (req, res) => {
       payload = await getB2BDashboardFromTable();
     } else if (team === "igt_b2b") {
       payload = await getIgtB2BDashboard();
+    } else if (team === "igt-ir-m" || team === "igv-ir-m") {
+      payload = await getIgvIrmDashboard();
     } else if (team === "ogt") {
       payload = await getOgtDashboard();
     } else if (["irm1_t01", "irm2_t01", "irm1_t02", "irm2_t02"].includes(team)) {
