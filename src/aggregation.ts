@@ -728,74 +728,68 @@ export async function getIgvIrmDashboard(): Promise<TeamDashboardPayload> {
   const marcomRows = marcomRes.data || [];
 
   // Map to Performer interface
-  const matchingPerformers: TeamDashboardPerformer[] = matchingRows.map((r: any) => ({
+  const matchingPerformers: (TeamDashboardPerformer & { teamName: string; source: string })[] = matchingRows.map((r: any) => ({
     email: `${r.name.toLowerCase().replace(/\s+/g, ".")}_matching@example.com`,
     name: r.name,
     role: r.role || "Member",
-    score: Number(r.total || 0),
+    teamName: r.team || "Marcom", // Fallback if missing
+    source: "matching",
+    score: Math.round(Number(r.total || 0)),
     avatar: initials(r.name),
     metrics: {
-      mous: Number(r.matching_interviews || 0),
-      coldCalls: Number(r.acceptance || 0),
-      followups: Number(r.approvals || 0)
+      mous: Math.round(Number(r.matching_interviews || 0)),
+      coldCalls: Math.round(Number(r.acceptance || 0)),
+      followups: Math.round(Number(r.approvals || 0))
     }
   }));
 
-  const irPerformers: TeamDashboardPerformer[] = irRows.map((r: any) => ({
+  const irPerformers: (TeamDashboardPerformer & { teamName: string; source: string })[] = irRows.map((r: any) => ({
     email: `${r.name.toLowerCase().replace(/\s+/g, ".")}_ir@example.com`,
     name: r.name,
     role: r.role || "Member",
-    score: Number(r.total || 0),
+    teamName: r.team || "Marcom",
+    source: "ir",
+    score: Math.round(Number(r.total || 0)),
     avatar: initials(r.name),
     metrics: {
-      mous: Number(r.ir_calls || 0),
-      coldCalls: Number(r.ir_application || 0),
-      followups: Number(r.ir_approvals || 0)
+      mous: Math.round(Number(r.ir_calls || 0)),
+      coldCalls: Math.round(Number(r.ir_application || 0)),
+      followups: Math.round(Number(r.ir_approvals || 0))
     }
   }));
 
-  const marcomPerformers: TeamDashboardPerformer[] = marcomRows.map((r: any) => ({
+  const marcomPerformers: (TeamDashboardPerformer & { teamName: string; source: string })[] = marcomRows.map((r: any) => ({
     email: `${r.name.toLowerCase().replace(/\s+/g, ".")}_marcom@example.com`,
     name: r.name,
     role: r.role || "Member",
-    score: Number(r.total || 0),
+    teamName: r.team || "Marcom",
+    source: "marcom",
+    score: Math.round(Number(r.total || 0)),
     avatar: initials(r.name),
     metrics: {
-      mous: Number(r.flyers || 0),
-      coldCalls: Number(r.videos || 0),
-      followups: Number(r.presentations || 0)
+      mous: Math.round(Number(r.flyers || 0)),
+      coldCalls: Math.round(Number(r.videos || 0)),
+      followups: Math.round(Number(r.presentations || 0))
     }
   }));
 
-  const miniTeams: TeamDashboardMiniTeam[] = [
-    {
-      slug: "matching",
-      name: "Matching",
-      rank: 1,
-      points: matchingPerformers.reduce((s, p) => s + p.score, 0),
-      growth: 0,
-      icon: "MT",
-      performers: matchingPerformers.sort((a,b) => b.score - a.score)
-    },
-    {
-      slug: "ir",
-      name: "IR",
-      rank: 2,
-      points: irPerformers.reduce((s, p) => s + p.score, 0),
-      growth: 0,
-      icon: "IR",
-      performers: irPerformers.sort((a,b) => b.score - a.score)
-    },
-    {
-      slug: "marcom",
-      name: "Marcom",
-      rank: 3,
-      points: marcomPerformers.reduce((s, p) => s + p.score, 0),
-      growth: 0,
-      icon: "MC",
-      performers: marcomPerformers.sort((a,b) => b.score - a.score)
-    }
-  ].sort((a, b) => b.points - a.points).map((t, i) => ({ ...t, rank: i + 1 }));
+  const allPerformers = [...matchingPerformers, ...irPerformers, ...marcomPerformers];
+
+  // Group by teamName dynamically
+  const teamGroups = new Map<string, typeof allPerformers>();
+  for (const p of allPerformers) {
+    if (!teamGroups.has(p.teamName)) teamGroups.set(p.teamName, []);
+    teamGroups.get(p.teamName)!.push(p);
+  }
+
+  const miniTeams: TeamDashboardMiniTeam[] = Array.from(teamGroups.entries()).map(([teamName, performers]) => ({
+    slug: teamName.toLowerCase().replace(/\s+/g, "_"),
+    name: teamName,
+    points: performers.reduce((s, p) => s + p.score, 0),
+    growth: 0,
+    icon: teamName.substring(0, 2).toUpperCase(),
+    performers: performers.sort((a,b) => b.score - a.score).map(({ teamName, ...rest }) => rest)
+  })).sort((a, b) => b.points - a.points).map((t, i) => ({ ...t, rank: i + 1 }));
 
   return {
     name: "IGV IR & M",
