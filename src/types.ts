@@ -168,3 +168,28 @@ export interface IgvIrmSyncPayload {
   ir_members: IgvIrMember[];
   marcom_members: IgvMarcomMember[];
 }
+
+export interface IgtIrMember {
+  name: string;
+  role: string;
+  ir_calls_scheduled: number;
+  ir_cvs_collected: number;
+  ir_calls_participated: number;
+  points: number;
+}
+
+export interface IgtMatchingMember {
+  name: string;
+  role: string;
+  eps_reached_out_to: number;
+  interviews_scheduled: number;
+  interviews_successful: number;
+  apds: number;
+  points: number;
+}
+
+export interface IgtIrmSyncPayload {
+  igt_ir_members: IgtIrMember[];
+  igt_matching_members: IgtMatchingMember[];
+  synced_at: string;
+}
