@@ -133,3 +133,38 @@ export interface SyncTablePayload {
 export interface SyncAllSheetsPayload {
   tables: SyncTablePayload[];
 }
+
+export interface IgvMatchingMember {
+  name: string;
+  role: string;
+  team: string;
+  matching_interviews: number;
+  acceptance: number;
+  approvals: number;
+  total: number;
+}
+
+export interface IgvIrMember {
+  name: string;
+  role: string;
+  team: string;
+  ir_calls: number;
+  ir_application: number;
+  ir_approvals: number;
+  total: number;
+}
+
+export interface IgvMarcomMember {
+  name: string;
+  role: string;
+  flyers: number;
+  videos: number;
+  presentations: number;
+  total: number;
+}
+
+export interface IgvIrmSyncPayload {
+  matching_members: IgvMatchingMember[];
+  ir_members: IgvIrMember[];
+  marcom_members: IgvMarcomMember[];
+}
