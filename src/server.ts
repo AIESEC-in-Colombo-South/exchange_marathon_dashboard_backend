@@ -432,7 +432,7 @@ app.get("/api/dashboard/:team", async (req, res) => {
       payload = await getB2BDashboardFromTable();
     } else if (team === "igt_b2b") {
       payload = await getIgtB2BDashboard();
-    } else if (team === "igt-ir-m" || team === "igv-ir-m") {
+    } else if (team === "igt-ir-m" || team === "igv_ir_m" || team === "igv_ir") {
       payload = await getIgvIrmDashboard();
     } else if (team === "ogt") {
       payload = await getOgtDashboard();
