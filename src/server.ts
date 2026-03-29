@@ -390,8 +390,9 @@ app.post("/sync/igt-ir-m", async (req, res) => {
     console.log(`✅ IGV IR&M sync completed:`, results);
     res.status(200).json({ ok: true, data: results });
   } catch (error) {
-    console.error("Manual IGV IR&M sync failed:", error instanceof Error ? error.message : error);
-    res.status(500).json({ ok: false, error: "Internal server error during sync" });
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error("Manual IGV IR&M sync failed:", errorMsg);
+    res.status(500).json({ ok: false, error: errorMsg });
   } finally {
     schedulerBusy = false;
   }
