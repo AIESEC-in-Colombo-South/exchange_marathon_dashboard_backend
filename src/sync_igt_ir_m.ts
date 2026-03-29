@@ -23,9 +23,38 @@ export async function syncIgvIrmData(payload: IgvIrmSyncPayload) {
   for (const config of syncConfigs) {
     const { tableName, rows } = config;
     try {
+      if (!rows || !Array.isArray(rows)) {
+        throw new Error(`Invalid row data for ${tableName}`);
+      }
+      
       console.log(`🔄 Syncing table: ${tableName} with ${rows.length} rows...`);
 
-      // Clear existing data (Truncate strategy)
+      // 1. Remove duplicates from the payload itself before inserting
+      // to avoid unique constraint violations
+      const uniqueRows = [];
+      const seenKeys = new Set();
+      
+      for (const row of rows as any[]) {
+        let key;
+        const name = String(row.name || "unknown").toLowerCase();
+        
+        if (tableName === "marcom_members") {
+          key = `marcom|${name}`;
+        } else {
+          // matching_members and ir_members use (name, team)
+          const team = String(row.team || "unknown").toLowerCase();
+          key = `${tableName}|${name}|${team}`;
+        }
+        
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          uniqueRows.push(row);
+        } else {
+          console.warn(`⚠️ Skipping duplicate row in payload for ${tableName}: ${key}`);
+        }
+      }
+
+      // 2. Clear existing data
       const { error: deleteError } = await supabase
         .from(tableName)
         .delete()
@@ -35,26 +64,28 @@ export async function syncIgvIrmData(payload: IgvIrmSyncPayload) {
         throw new Error(`Failed to clear table ${tableName}: ${deleteError.message}`);
       }
 
-      if (rows.length > 0) {
-        // Map rows to ensure they match internal DB names if needed, 
-        // though the payload seems to match the schema.
+      // 3. Insert unique rows
+      if (uniqueRows.length > 0) {
         const { error: insertError } = await supabase
           .from(tableName)
-          .insert(rows);
+          .insert(uniqueRows);
 
         if (insertError) {
           throw new Error(`Failed to insert into ${tableName}: ${insertError.message}`);
         }
       }
 
-      results[tableName] = { count: rows.length, status: "success" };
+      results[tableName] = { count: uniqueRows.length, status: "success" };
       console.log(`✅ Table ${tableName} synced successfully.`);
     } catch (e) {
-      console.error(`❌ Error syncing table ${tableName}:`, e);
+      const errorMsg = e instanceof Error ? e.message : String(e);
+      console.error(`❌ Error syncing table ${tableName}:`, errorMsg);
       results[tableName] = { 
         count: 0, 
-        status: `error: ${e instanceof Error ? e.message : String(e)}` 
+        status: `error: ${errorMsg}` 
       };
+      // We throw here to make the whole request fail so the user sees it in Apps Script
+      throw new Error(`Sync failed for ${tableName}: ${errorMsg}`);
     }
   }
 
