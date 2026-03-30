@@ -15,8 +15,10 @@ import {
   getOgtDashboard,
   getIgtB2BDashboard,
   getIgvIrmDashboard,
-  getIgtIrmDashboard
+  getIgtIrmDashboard,
+  getOgvPsDashboard
 } from "./aggregation.js";
+import { syncXcendPsData } from "./sync_xcend_ps.js";
 import { getSupabase } from "./supabase.js";
 const app = express();
 app.use(cors());
@@ -436,6 +438,26 @@ app.post("/sync/members", async (req, res) => {
   res.status(404).json({ ok: false, error: "Table sync not configured for this endpoint." });
 });
 
+app.post("/sync/xcend-ps", async (req, res) => {
+  if (schedulerBusy) {
+    res.status(429).json({ ok: false, error: "Sync already in progress." });
+    return;
+  }
+
+  schedulerBusy = true;
+  try {
+    const results = await syncXcendPsData(req.body);
+    console.log(`✅ Xcend PS sync completed:`, results);
+    res.status(200).json({ ok: true, data: results });
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error("Manual Xcend PS sync failed:", errorMsg);
+    res.status(500).json({ ok: false, error: errorMsg });
+  } finally {
+    schedulerBusy = false;
+  }
+});
+
 app.get("/api/dashboard/:team", async (req, res) => {
   const team = String(req.params.team || "").trim().toLowerCase();
   const period = String(req.query.period || "daily") as any;
@@ -459,6 +481,8 @@ app.get("/api/dashboard/:team", async (req, res) => {
       payload = await getIgvIrmDashboard();
     } else if (team === "ogt") {
       payload = await getOgtDashboard();
+    } else if (team === "ogv_ps") {
+      payload = await getOgvPsDashboard();
     } else if (["irm1_t01", "irm2_t01", "irm1_t02", "irm2_t02"].includes(team)) {
       payload = await getIRMTeamDashboard(team, period);
     } else if (team === "mkt") {
