@@ -93,9 +93,13 @@ export async function getTeamDashboard(
           email, // 👈 Populate email
           name: String(row.name || "Unknown"),
           role: String(row.role || "Member"),
-          score: score,
+          score: Math.round(score),
           avatar: initials(String(row.name || "Unknown")),
-          metrics: counts
+          metrics: {
+            mous: Math.round(counts.mous),
+            coldCalls: Math.round(counts.coldCalls),
+            followups: Math.round(counts.followups)
+          }
         });
       }
     }
@@ -208,7 +212,7 @@ export async function getMktDashboard(
           email: `${String(m.Member || "unknown").toLowerCase().replace(/\s+/g, ".")}_mkt@example.com`,
           name: String(m.Member || "Unknown"),
           role: normalizedRole,
-          score: Number(m.Points || 0),
+          score: Math.round(Number(m.Points || 0)),
           avatar: initials(String(m.Member || "Unknown")),
           metrics: { mous: 0, coldCalls: 0, followups: 0 }
         }
@@ -312,7 +316,7 @@ export async function getMktDashboard(
       email: `${m.Member.toLowerCase().replace(/\s+/g, '.')}_mkt@example.com`,
       name: m.Member,
       role: normalizedRole,
-      score: Number(m.Points || 0),
+      score: Math.round(Number(m.Points || 0)),
       avatar: initials(m.Member),
       metrics: { mous: 0, coldCalls: 0, followups: 0 }
     });
@@ -373,12 +377,12 @@ export async function getIRMTeamDashboard(
     email: `${r.name.toLowerCase().replace(/\s+/g, ".")}_irm@example.com`,
     name: r.name,
     role: "IRM Member",
-    score: Number(r.total_points || 0),
+    score: Math.round(Number(r.total_points || 0)),
     avatar: initials(r.name),
     metrics: {
-      mous: Number(r.ir_applications || 0),
-      coldCalls: Number(r.ir_calls || 0),
-      followups: Number(r.ir_approvals || 0),
+      mous: Math.round(Number(r.ir_applications || 0)),
+      coldCalls: Math.round(Number(r.ir_calls || 0)),
+      followups: Math.round(Number(r.ir_approvals || 0)),
     },
   }));
 
@@ -427,12 +431,12 @@ export async function getMarcomDashboardFromTable(): Promise<TeamDashboardPayloa
     email: `${r.name.toLowerCase().replace(/\s+/g, ".")}_marcom@example.com`,
     name: r.name,
     role: "Marcom Member",
-    score: Number(r.total_points || 0),
+    score: Math.round(Number(r.total_points || 0)),
     avatar: initials(r.name),
     metrics: {
-      mous: Number(r.flyers || 0),
-      coldCalls: Number(r.videos || 0),
-      followups: Number(r.presentations || 0),
+      mous: Math.round(Number(r.flyers || 0)),
+      coldCalls: Math.round(Number(r.videos || 0)),
+      followups: Math.round(Number(r.presentations || 0)),
     },
   }));
 
@@ -563,19 +567,19 @@ export async function getOgtDashboard(): Promise<TeamDashboardPayload> {
       email: `${memberName.toLowerCase().replace(/\s+/g, ".")}_ogt@example.com`,
       name: memberName,
       role: String(row.member_role || "MEMBER"),
-      score: Math.ceil(Number(row.total_points || 0)),
+      score: Math.round(Number(row.total_points || 0)),
       avatar: initials(memberName),
       metrics: {
-        mous: Number(row.no_of_su || 0),
-        coldCalls: Number(row.no_of_apl || 0), // Use APL for second metric
-        followups: Number(row.no_of_apd || 0), // Use APD for third metric
+        mous: Math.round(Number(row.no_of_su || 0)),
+        coldCalls: Math.round(Number(row.no_of_apl || 0)), // Use APL for second metric
+        followups: Math.round(Number(row.no_of_apd || 0)), // Use APD for third metric
         // Additional metrics for OGT
-        ogt_su: Number(row.no_of_su || 0),
-        ogt_apl: Number(row.no_of_apl || 0),
-        ogt_apd: Number(row.no_of_apd || 0),
-        ogt_ir_calls: Number(row.no_of_ir_calls_taken || 0),
-        ogt_campaigns: Number(row.no_of_national_campaigns || 0),
-        ogt_flyers: Number(row.no_of_pre_su_through_opp_flyers || 0)
+        ogt_su: Math.round(Number(row.no_of_su || 0)),
+        ogt_apl: Math.round(Number(row.no_of_apl || 0)),
+        ogt_apd: Math.round(Number(row.no_of_apd || 0)),
+        ogt_ir_calls: Math.round(Number(row.no_of_ir_calls_taken || 0)),
+        ogt_campaigns: Math.round(Number(row.no_of_national_campaigns || 0)),
+        ogt_flyers: Math.round(Number(row.no_of_pre_su_through_opp_flyers || 0))
       }
     } as any);
 
@@ -645,23 +649,23 @@ export async function getIgtB2BDashboard(): Promise<TeamDashboardPayload> {
       email: `${memberName.toLowerCase().replace(/\s+/g, ".")}_igtb2b@example.com`,
       name: memberName,
       role: String(row.member_role || "MEMBER"), 
-      score: Math.ceil(Number(row.total_points || 0)),
+      score: Math.round(Number(row.total_points || 0)),
       avatar: initials(memberName),
       metrics: {
-        mous: Number(row.meetings_scheduled || 0),
-        coldCalls: Number(row.cold_calls || 0), 
-        followups: Number(row.follow_ups || 0),
-        igt_cold_calls: Number(row.cold_calls || 0),
-        igt_follow_ups: Number(row.follow_ups || 0),
-        igt_proposals: Number(row.proposals_emails_sent || 0),
-        igt_meetings: Number(row.meetings_scheduled || 0),
-        igt_leads: Number(row.leads_generated || 0),
-        igt_contracts: Number(row.contracts_signed || 0),
-        igt_training: Number(row.training_attendance || 0),
-        igt_team_meeting: Number(row.team_meeting || 0),
-        igt_team_bonus: Number(row.team_cold_calls_bonus || 0)
+        mous: Math.round(Number(row.meetings_scheduled || 0)),
+        coldCalls: Math.round(Number(row.cold_calls || 0)), 
+        followups: Math.round(Number(row.follow_ups || 0)),
+        igt_cold_calls: Math.round(Number(row.cold_calls || 0)),
+        igt_follow_ups: Math.round(Number(row.follow_ups || 0)),
+        igt_proposals: Math.round(Number(row.proposals_emails_sent || 0)),
+        igt_meetings: Math.round(Number(row.meetings_scheduled || 0)),
+        igt_leads: Math.round(Number(row.leads_generated || 0)),
+        igt_contracts: Math.round(Number(row.contracts_signed || 0)),
+        igt_training: Math.round(Number(row.training_attendance || 0)),
+        igt_team_meeting: Math.round(Number(row.team_meeting || 0)),
+        igt_team_bonus: Math.round(Number(row.team_cold_calls_bonus || 0))
       },
-      team_totals: Number(row.team_totals || 0) // Temporary store per member
+      team_totals: Math.round(Number(row.team_totals || 0)) // Temporary store per member
     } as any);
 
     teamMap.set(teamName, members);
@@ -828,16 +832,16 @@ export async function getIgtIrmDashboard(): Promise<TeamDashboardPayload> {
     email: `${r.name.toLowerCase().replace(/\s+/g, ".")}_ir@igt.com`, 
     name: r.name,
     role: r.role,
-    score: Number(r.points || 0),
+    score: Math.round(Number(r.points || 0)),
     avatar: initials(r.name),
     source: 'ir',
     metrics: {
-      mous: Number(r.ir_calls_scheduled || 0),
-      coldCalls: Number(r.ir_cvs_collected || 0),
-      followups: Number(r.ir_calls_participated || 0),
-      igt_ir_calls: Number(r.ir_calls_scheduled || 0),
-      igt_ir_cvs: Number(r.ir_cvs_collected || 0),
-      igt_ir_participated: Number(r.ir_calls_participated || 0)
+      mous: Math.round(Number(r.ir_calls_scheduled || 0)),
+      coldCalls: Math.round(Number(r.ir_cvs_collected || 0)),
+      followups: Math.round(Number(r.ir_calls_participated || 0)),
+      igt_ir_calls: Math.round(Number(r.ir_calls_scheduled || 0)),
+      igt_ir_cvs: Math.round(Number(r.ir_cvs_collected || 0)),
+      igt_ir_participated: Math.round(Number(r.ir_calls_participated || 0))
     }
   }));
 
@@ -845,17 +849,17 @@ export async function getIgtIrmDashboard(): Promise<TeamDashboardPayload> {
     email: `${r.name.toLowerCase().replace(/\s+/g, ".")}_m@igt.com`, 
     name: r.name,
     role: r.role,
-    score: Number(r.points || 0),
+    score: Math.round(Number(r.points || 0)),
     avatar: initials(r.name),
     source: 'matching',
     metrics: {
-      mous: Number(r.eps_reached_out_to || 0),
-      coldCalls: Number(r.interviews_scheduled || 0),
-      followups: Number(r.interviews_successful || 0),
-      igt_m_outreach: Number(r.eps_reached_out_to || 0),
-      igt_m_interviews: Number(r.interviews_scheduled || 0),
-      igt_m_success: Number(r.interviews_successful || 0),
-      igt_m_apds: Number(r.apds || 0)
+      mous: Math.round(Number(r.eps_reached_out_to || 0)),
+      coldCalls: Math.round(Number(r.interviews_scheduled || 0)),
+      followups: Math.round(Number(r.interviews_successful || 0)),
+      igt_m_outreach: Math.round(Number(r.eps_reached_out_to || 0)),
+      igt_m_interviews: Math.round(Number(r.interviews_scheduled || 0)),
+      igt_m_success: Math.round(Number(r.interviews_successful || 0)),
+      igt_m_apds: Math.round(Number(r.apds || 0))
     }
   }));
 
@@ -898,3 +902,93 @@ export async function getIgtIrmDashboard(): Promise<TeamDashboardPayload> {
     }
   };
 }
+
+export async function getOgvPsDashboard(): Promise<TeamDashboardPayload> {
+  const supabase = getSupabase() as any;
+  
+  // Fetch CR and IR data
+  const { data: crData, error: crError } = await supabase.from("xcend_cr").select("*");
+  const { data: irData, error: irError } = await supabase.from("xcend_ir").select("*");
+
+  if (crError) throw crError;
+  if (irError) throw irError;
+
+  const crRows = crData || [];
+  const irRows = irData || [];
+
+  const teamMap = new Map<string, TeamDashboardPerformer[]>();
+
+  // Process CR
+  const crPerformers: TeamDashboardPerformer[] = crRows.map((row: any) => ({
+    email: `${row.person.toLowerCase().replace(/\s+/g, ".")}_cr@example.com`,
+    name: row.person,
+    role: row.role || "MEMBER",
+    score: Math.round(Number(row.points || 0)),
+    avatar: initials(row.person),
+    metrics: {
+      mous: Math.round(Number(row.number_of_sign_ups || 0)),
+      coldCalls: Math.round(Number(row.number_of_applications || 0)),
+      followups: Math.round(Number(row.number_of_approvals || 0)),
+      // Additional metrics for CR
+      cr_signups: Math.round(Number(row.number_of_sign_ups || 0)),
+      cr_apps: Math.round(Number(row.number_of_applications || 0)),
+      cr_approvals: Math.round(Number(row.number_of_approvals || 0))
+    }
+  } as any));
+  teamMap.set("CR Performance", crPerformers);
+
+  // Process IR
+  const irPerformers: TeamDashboardPerformer[] = irRows.map((row: any) => ({
+    email: `${row.person.toLowerCase().replace(/\s+/g, ".")}_ir@example.com`,
+    name: row.person,
+    role: row.role || "MEMBER",
+    score: Math.round(Number(row.points || 0)),
+    avatar: initials(row.person),
+    metrics: {
+      mous: Math.round(Number(row.number_of_ir_scheduled || 0)),
+      coldCalls: Math.round(Number(row.number_of_ir_calls_taken || 0)),
+      followups: Math.round(Number(row.matching || 0)),
+      // Additional metrics for IR
+      ir_scheduled: Math.round(Number(row.number_of_ir_scheduled || 0)),
+      ir_calls: Math.round(Number(row.number_of_ir_calls_taken || 0)),
+      ir_matching: Math.round(Number(row.matching || 0))
+    }
+  } as any));
+  teamMap.set("IR Performance", irPerformers);
+
+  const miniTeams: TeamDashboardMiniTeam[] = Array.from(teamMap.entries())
+    .map(([name, performers]) => ({
+      slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, ""),
+      name,
+      rank: 0,
+      points: performers.reduce((sum, p) => sum + p.score, 0),
+      growth: 0,
+      icon: initials(name),
+      performers: performers.sort((a, b) => b.score - a.score)
+    }))
+    .map((team, index) => ({ ...team, rank: index + 1 }));
+
+  const totalPoints = miniTeams.reduce((sum, team) => sum + team.points, 0);
+  const completedActions = miniTeams
+    .flatMap((team) => team.performers)
+    .reduce((sum, performer) => sum + (performer.metrics.mous || 0) + (performer.metrics.coldCalls || 0) + (performer.metrics.followups || 0), 0);
+
+  return {
+    name: "oGV PS",
+    displayName: "oGV Professional Support Dashboard",
+    functionSlug: "ogv_ps",
+    miniTeams,
+    totalPoints,
+    totalGrowth: 0,
+    completedActions,
+    weeklyGrowth: 0,
+    asOfDate: currentDateKey(),
+    period: "marathon",
+    syncInfo: {
+      lastSyncTime: nowIso(),
+      nextSyncTime: nowIso(),
+      intervalMinutes: config.syncScheduler.intervalMinutes
+    }
+  };
+}
+

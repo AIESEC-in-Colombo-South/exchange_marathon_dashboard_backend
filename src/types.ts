@@ -193,3 +193,27 @@ export interface IgtIrmSyncPayload {
   igt_matching_members: IgtMatchingMember[];
   synced_at: string;
 }
+
+export interface XcendCrMember {
+  person: string;
+  role: string;
+  number_of_sign_ups: number;
+  number_of_applications: number;
+  number_of_approvals: number;
+  points: number;
+}
+
+export interface XcendIrMember {
+  person: string;
+  role: string;
+  number_of_ir_scheduled: number;
+  number_of_ir_calls_taken: number;
+  matching: number;
+  points: number;
+}
+
+export interface XcendPsSyncPayload {
+  xcend_cr: XcendCrMember[];
+  xcend_ir: XcendIrMember[];
+  synced_at: string;
+}
