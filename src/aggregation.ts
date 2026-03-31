@@ -903,6 +903,143 @@ export async function getIgtIrmDashboard(): Promise<TeamDashboardPayload> {
   };
 }
 
+export async function getOgvCrDashboard(): Promise<TeamDashboardPayload> {
+  const supabase = getSupabase() as any;
+  const { data: crData, error: crError } = await supabase.from("xcend_cr").select("*");
+  if (crError) throw crError;
+  const crRows = crData || [];
+
+  const crPerformers: TeamDashboardPerformer[] = crRows.map((row: any) => ({
+    email: `${row.person.toLowerCase().replace(/\s+/g, ".")}_cr@example.com`,
+    name: row.person,
+    role: row.role || "MEMBER",
+    score: Math.round(Number(row.points || 0)),
+    avatar: initials(row.person),
+    metrics: {
+      mous: Math.round(Number(row.number_of_sign_ups || 0)),
+      coldCalls: Math.round(Number(row.number_of_applications || 0)),
+      followups: Math.round(Number(row.number_of_approvals || 0)),
+      cr_signups: Math.round(Number(row.number_of_sign_ups || 0)),
+      cr_apps: Math.round(Number(row.number_of_applications || 0)),
+      cr_approvals: Math.round(Number(row.number_of_approvals || 0))
+    }
+  } as any));
+
+  const team1Performers = crPerformers.filter(p => p.role.toLowerCase().includes('team1'));
+  const team2Performers = crPerformers.filter(p => p.role.toLowerCase().includes('team2'));
+  const otherPerformers = crPerformers.filter(p => !p.role.toLowerCase().includes('team1') && !p.role.toLowerCase().includes('team2'));
+
+  const miniTeams: TeamDashboardMiniTeam[] = [];
+
+  if (team1Performers.length > 0) {
+    miniTeams.push({
+      slug: "team_1",
+      name: "Team 1",
+      rank: 1,
+      points: team1Performers.reduce((sum, p) => sum + p.score, 0),
+      growth: 0,
+      icon: "T1",
+      performers: team1Performers.sort((a, b) => b.score - a.score)
+    });
+  }
+
+  if (team2Performers.length > 0) {
+    miniTeams.push({
+      slug: "team_2",
+      name: "Team 2",
+      rank: 2,
+      points: team2Performers.reduce((sum, p) => sum + p.score, 0),
+      growth: 0,
+      icon: "T2",
+      performers: team2Performers.sort((a, b) => b.score - a.score)
+    });
+  }
+
+  if (otherPerformers.length > 0) {
+    miniTeams.push({
+      slug: "cr_general",
+      name: "General",
+      rank: 3,
+      points: otherPerformers.reduce((sum, p) => sum + p.score, 0),
+      growth: 0,
+      icon: "CR",
+      performers: otherPerformers.sort((a, b) => b.score - a.score)
+    });
+  }
+
+  // Rank mini-teams by points
+  miniTeams.sort((a, b) => b.points - a.points).forEach((mt, i) => mt.rank = i + 1);
+
+  return {
+    name: "oGV PS - CR",
+    displayName: "oGV PS Conversion Performance Dashboard",
+    functionSlug: "ogv_cr",
+    miniTeams,
+    totalPoints: crPerformers.reduce((sum, p) => sum + p.score, 0),
+    totalGrowth: 0,
+    completedActions: crPerformers.reduce((sum, p) => sum + (p.metrics.mous || 0) + (p.metrics.coldCalls || 0) + (p.metrics.followups || 0), 0),
+    weeklyGrowth: 0,
+    asOfDate: currentDateKey(),
+    period: "marathon",
+    syncInfo: {
+      lastSyncTime: nowIso(),
+      nextSyncTime: nowIso(),
+      intervalMinutes: config.syncScheduler.intervalMinutes
+    }
+  };
+}
+
+export async function getOgvIrDashboard(): Promise<TeamDashboardPayload> {
+  const supabase = getSupabase() as any;
+  const { data: irData, error: irError } = await supabase.from("xcend_ir").select("*");
+  if (irError) throw irError;
+  const irRows = irData || [];
+
+  const irPerformers: TeamDashboardPerformer[] = irRows.map((row: any) => ({
+    email: `${row.person.toLowerCase().replace(/\s+/g, ".")}_ir@example.com`,
+    name: row.person,
+    role: row.role || "MEMBER",
+    score: Math.round(Number(row.points || 0)),
+    avatar: initials(row.person),
+    metrics: {
+      mous: Math.round(Number(row.number_of_ir_scheduled || 0)),
+      coldCalls: Math.round(Number(row.number_of_ir_calls_taken || 0)),
+      followups: Math.round(Number(row.matching || 0)),
+      ir_scheduled: Math.round(Number(row.number_of_ir_scheduled || 0)),
+      ir_calls: Math.round(Number(row.number_of_ir_calls_taken || 0)),
+      ir_matching: Math.round(Number(row.matching || 0))
+    }
+  } as any));
+
+  const miniTeams: TeamDashboardMiniTeam[] = [{
+    slug: "ir_performance",
+    name: "IR Performance",
+    rank: 1,
+    points: irPerformers.reduce((sum, p) => sum + p.score, 0),
+    growth: 0,
+    icon: "IR",
+    performers: irPerformers.sort((a, b) => b.score - a.score)
+  }];
+
+  return {
+    name: "oGV PS - IR",
+    displayName: "oGV PS IR Performance Dashboard",
+    functionSlug: "ogv_ir",
+    miniTeams,
+    totalPoints: miniTeams[0].points,
+    totalGrowth: 0,
+    completedActions: irPerformers.reduce((sum, p) => sum + (p.metrics.mous || 0) + (p.metrics.coldCalls || 0) + (p.metrics.followups || 0), 0),
+    weeklyGrowth: 0,
+    asOfDate: currentDateKey(),
+    period: "marathon",
+    syncInfo: {
+      lastSyncTime: nowIso(),
+      nextSyncTime: nowIso(),
+      intervalMinutes: config.syncScheduler.intervalMinutes
+    }
+  };
+}
+
 export async function getOgvPsDashboard(): Promise<TeamDashboardPayload> {
   const supabase = getSupabase() as any;
   
@@ -991,4 +1128,5 @@ export async function getOgvPsDashboard(): Promise<TeamDashboardPayload> {
     }
   };
 }
+
 
