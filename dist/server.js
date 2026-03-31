@@ -4,7 +4,9 @@ import { config, assertSyncConfig } from "./config.js";
 import { runSync } from "./sync.js";
 import { syncMktMembers } from "./sync_mkt.js";
 import { syncAllSheets } from "./sync_irm.js";
-import { getTeamDashboard, getMktDashboard, getIRMTeamDashboard, getMarcomDashboardFromTable, getB2BDashboardFromTable } from "./aggregation.js";
+import { syncIgvIrmData, syncIgtIrmData } from "./sync_igt_ir_m.js";
+import { getTeamDashboard, getMktDashboard, getIRMTeamDashboard, getMarcomDashboardFromTable, getB2BDashboardFromTable, getOgtDashboard, getIgtB2BDashboard, getIgvIrmDashboard, getIgtIrmDashboard, getOgvPsCrDashboard, getOgvPsIrDashboard } from "./aggregation.js";
+import { syncXcendPsData } from "./sync_xcend_ps.js";
 import { getSupabase } from "./supabase.js";
 const app = express();
 app.use(cors());
@@ -178,6 +180,11 @@ app.post("/api/sync-b2b", async (req, res) => {
         res.status(400).json({ ok: false, error: "Request body must include a non-empty data array." });
         return;
     }
+    if (schedulerBusy) {
+        res.status(429).json({ ok: false, error: "Sync already in progress." });
+        return;
+    }
+    schedulerBusy = true;
     try {
         const supabase = getSupabase();
         const mappedRows = records
@@ -222,6 +229,196 @@ app.post("/api/sync-b2b", async (req, res) => {
         console.error("B2B sync failed:", error instanceof Error ? error.message : error);
         res.status(500).json({ ok: false, error: "Internal server error during B2B sync" });
     }
+    finally {
+        schedulerBusy = false;
+    }
+});
+app.post("/sync/ogt-members", async (req, res) => {
+    const { rows } = req.body;
+    const records = Array.isArray(rows) ? rows : [];
+    if (records.length === 0) {
+        res.status(400).json({ ok: false, error: "Request body must include a non-empty rows array." });
+        return;
+    }
+    if (schedulerBusy) {
+        res.status(429).json({ ok: false, error: "Sync already in progress." });
+        return;
+    }
+    schedulerBusy = true;
+    try {
+        const supabase = getSupabase();
+        const mappedRows = records
+            .map((row) => {
+            const memberName = String(row.member_name || "").trim();
+            if (!memberName)
+                return null;
+            return {
+                team_name: String(row.team_name || "Unknown").trim(),
+                member_name: memberName,
+                member_role: String(row.member_role || "MEMBER").toUpperCase(),
+                no_of_su: Number(row.no_of_su || 0),
+                no_of_apl: Number(row.no_of_apl || 0),
+                no_of_apd: Number(row.no_of_apd || 0),
+                no_of_ir_calls_taken: Number(row.no_of_ir_calls_taken || 0),
+                no_of_national_campaigns: Number(row.no_of_national_campaigns || 0),
+                no_of_pre_su_through_opp_flyers: Number(row.no_of_pre_su_through_opp_flyers || 0),
+                total_points: Number(row.total_points || 0),
+                updated_at: new Date().toISOString()
+            };
+        })
+            .filter(Boolean);
+        if (mappedRows.length === 0) {
+            res.status(400).json({ ok: false, error: "No valid records found (member_name is required)." });
+            return;
+        }
+        // Upsert logic: requires UNIQUE (team_name, member_name) in database
+        const { error: upsertError } = await supabase
+            .from("ogt_members")
+            .upsert(mappedRows, { onConflict: "team_name,member_name" });
+        if (upsertError) {
+            throw upsertError;
+        }
+        res.status(200).json({ ok: true, upserted: mappedRows.length });
+    }
+    catch (error) {
+        const errorMessage = error?.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+        console.error("OGT sync failed:", error);
+        res.status(500).json({ ok: false, error: errorMessage });
+    }
+    finally {
+        schedulerBusy = false;
+    }
+});
+app.post("/sync/igt-b2b", async (req, res) => {
+    const { rows } = req.body;
+    const records = Array.isArray(rows) ? rows : [];
+    if (records.length === 0) {
+        res.status(400).json({ ok: false, error: "Request body must include a non-empty rows array." });
+        return;
+    }
+    if (schedulerBusy) {
+        res.status(429).json({ ok: false, error: "Sync already in progress." });
+        return;
+    }
+    schedulerBusy = true;
+    try {
+        const supabase = getSupabase();
+        const mappedRows = records
+            .map((row) => {
+            const memberName = String(row.name || row.member_name || "").trim();
+            if (!memberName)
+                return null;
+            return {
+                team_name: String(row.team || row.team_name || "IGT B2B").trim(),
+                member_name: memberName,
+                member_role: String(row.role || "MEMBER").trim(),
+                cold_calls: Number(row.cold_calls || 0),
+                follow_ups: Number(row.follow_ups || 0),
+                proposals_emails_sent: Number(row.proposals_emails_sent || row.proposals_emails_sent || 0),
+                meetings_scheduled: Number(row.meetings_scheduled || 0),
+                leads_generated: Number(row.leads_generated || 0),
+                contracts_signed: Number(row.contracts_signed || 0),
+                training_attendance: Number(row.training_attendance || 0),
+                team_meeting: Number(row.team_meeting || row.team_meeting_onlinephysical || 0),
+                team_cold_calls_bonus: Number(row.team_cold_calls_bonus || row.completing_25_successfull_cold_calls_as_a_team_5_points || 0),
+                team_totals: Number(row.team_totals || 0),
+                total_points: Number(row.total_individual_score || row.total_points || 0),
+                updated_at: new Date().toISOString()
+            };
+        })
+            .filter(Boolean);
+        if (mappedRows.length === 0) {
+            res.status(400).json({ ok: false, error: "No valid records found (member_name is required)." });
+            return;
+        }
+        const { error: upsertError } = await supabase
+            .from("igt_b2b_members")
+            .upsert(mappedRows, { onConflict: "member_name" });
+        if (upsertError)
+            throw upsertError;
+        res.status(200).json({ ok: true, upserted: mappedRows.length });
+    }
+    catch (error) {
+        const errorMessage = error?.message || String(error);
+        console.error("IGT B2B sync failed:", error);
+        res.status(500).json({ ok: false, error: errorMessage });
+    }
+    finally {
+        schedulerBusy = false;
+    }
+});
+app.post("/sync/igt-ir-m", async (req, res) => {
+    if (schedulerBusy) {
+        res.status(429).json({ ok: false, error: "Sync already in progress." });
+        return;
+    }
+    schedulerBusy = true;
+    try {
+        const results = await syncIgvIrmData(req.body);
+        console.log(`✅ IGV IR&M sync completed:`, results);
+        res.status(200).json({ ok: true, data: results });
+    }
+    catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.error("Manual IGV IR&M sync failed:", errorMsg);
+        res.status(500).json({ ok: false, error: errorMsg });
+    }
+    finally {
+        schedulerBusy = false;
+    }
+});
+app.post("/sync/igt-dashboard", async (req, res) => {
+    if (schedulerBusy) {
+        res.status(429).json({ ok: false, error: "Sync already in progress." });
+        return;
+    }
+    schedulerBusy = true;
+    try {
+        const results = await syncIgtIrmData(req.body);
+        console.log(`✅ iGT IR&M sync completed:`, results);
+        res.status(200).json({ ok: true, data: results });
+    }
+    catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.error("Manual iGT IR&M sync failed:", errorMsg);
+        res.status(500).json({ ok: false, error: errorMsg });
+    }
+    finally {
+        schedulerBusy = false;
+    }
+});
+// Fallback for default Apps Script which uses /sync/members
+app.post("/sync/members", async (req, res) => {
+    const { tableName, rows } = req.body;
+    // If it's the IGT B2B table or has IGT B2B columns, use that logic
+    const isIgtB2B = tableName === "members" || (rows && rows[0] && rows[0].noof_su !== undefined);
+    if (isIgtB2B) {
+        // Redirect to igt-b2b logic (or just execute it here)
+        console.log("Routing /sync/members request to IGT B2B sync...");
+        req.url = "/sync/igt-b2b";
+        return app._router.handle(req, res, () => { });
+    }
+    res.status(404).json({ ok: false, error: "Table sync not configured for this endpoint." });
+});
+app.post("/sync/xcend-ps", async (req, res) => {
+    if (schedulerBusy) {
+        res.status(429).json({ ok: false, error: "Sync already in progress." });
+        return;
+    }
+    schedulerBusy = true;
+    try {
+        const results = await syncXcendPsData(req.body);
+        console.log(`✅ Xcend PS sync completed:`, results);
+        res.status(200).json({ ok: true, data: results });
+    }
+    catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.error("Manual Xcend PS sync failed:", errorMsg);
+        res.status(500).json({ ok: false, error: errorMsg });
+    }
+    finally {
+        schedulerBusy = false;
+    }
 });
 app.get("/api/dashboard/:team", async (req, res) => {
     const team = String(req.params.team || "").trim().toLowerCase();
@@ -239,6 +436,24 @@ app.get("/api/dashboard/:team", async (req, res) => {
         }
         else if (team === "igv_b2b") {
             payload = await getB2BDashboardFromTable();
+        }
+        else if (team === "igt_b2b") {
+            payload = await getIgtB2BDashboard();
+        }
+        else if (team === "igt-ir-m" || team === "igt_ir" || team === "igt_ir_m") {
+            payload = await getIgtIrmDashboard();
+        }
+        else if (team === "igv_ir_m" || team === "igv_ir") {
+            payload = await getIgvIrmDashboard();
+        }
+        else if (team === "ogt") {
+            payload = await getOgtDashboard();
+        }
+        else if (team === "ogv_ps_cr") {
+            payload = await getOgvPsCrDashboard();
+        }
+        else if (team === "ogv_ps_ir") {
+            payload = await getOgvPsIrDashboard();
         }
         else if (["irm1_t01", "irm2_t01", "irm1_t02", "irm2_t02"].includes(team)) {
             payload = await getIRMTeamDashboard(team, period);

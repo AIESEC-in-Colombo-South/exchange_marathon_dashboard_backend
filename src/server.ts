@@ -16,7 +16,9 @@ import {
   getIgtB2BDashboard,
   getIgvIrmDashboard,
   getIgtIrmDashboard,
-  getOgvPsDashboard
+  getOgvPsDashboard,
+  getOgvCrDashboard,
+  getOgvIrDashboard
 } from "./aggregation.js";
 import { syncXcendPsData } from "./sync_xcend_ps.js";
 import { getSupabase } from "./supabase.js";
@@ -483,6 +485,10 @@ app.get("/api/dashboard/:team", async (req, res) => {
       payload = await getOgtDashboard();
     } else if (team === "ogv_ps") {
       payload = await getOgvPsDashboard();
+    } else if (team === "ogv_cr") {
+      payload = await getOgvCrDashboard();
+    } else if (team === "ogv_ir") {
+      payload = await getOgvIrDashboard();
     } else if (["irm1_t01", "irm2_t01", "irm1_t02", "irm2_t02"].includes(team)) {
       payload = await getIRMTeamDashboard(team, period);
     } else if (team === "mkt") {
